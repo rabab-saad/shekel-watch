@@ -7,7 +7,6 @@
     "start": "node dist/server.js"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.97.0",
     "axios": "^1.7.7",
     "cors": "^2.8.5",
@@ -17,7 +16,7 @@
     "express-rate-limit": "^7.4.1",
     "helmet": "^8.0.0",
     "node-cron": "^3.0.3",
-    "twilio": "^5.3.7",
+    "openai": "^4.104.0",
     "winston": "^3.14.2",
     "yahoo-finance2": "^2.11.3",
     "zod": "^3.23.8"

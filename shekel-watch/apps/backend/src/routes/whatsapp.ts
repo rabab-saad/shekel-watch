@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { validateTwilio } from '../middleware/validateTwilio';
+import { validateGreenApi } from '../middleware/validateGreenApi';
 import { sendWhatsAppMessage } from '../services/whatsappService';
 import { getUsdIlsRate } from '../services/currencyService';
 import { calculateArbitrageGaps } from '../services/arbitrageService';
-import { generateMarketSummary } from '../services/geminiService';
+import { generateMarketSummary } from '../services/chatgptService';
 import { getBatchQuotes } from '../services/yahooFinanceService';
 import { logger } from '../utils/logger';
 
@@ -11,14 +11,24 @@ const TASE_TICKERS = ['LUMI.TA', 'TEVA.TA', 'ESLT.TA', 'CHKP.TA', 'NICE.TA'];
 
 const router = Router();
 
-// POST /api/webhook/whatsapp
-router.post('/whatsapp', validateTwilio, async (req: Request, res: Response) => {
-  const from = req.body.From as string;
-  const body = ((req.body.Body as string) ?? '').trim().toLowerCase();
+// POST /api/webhook/whatsapp?token=SECRET
+// Green API webhook payload: https://green-api.com/en/docs/api/receiving/
+router.post('/whatsapp', validateGreenApi, async (req: Request, res: Response) => {
+  const { typeWebhook, senderData, messageData } = req.body;
+
+  // Only handle incoming text messages
+  if (typeWebhook !== 'incomingMessageReceived') {
+    res.sendStatus(200);
+    return;
+  }
+
+  const from: string = senderData?.chatId ?? '';
+  const rawText: string = messageData?.textMessageData?.textMessage ?? '';
+  const body = rawText.trim().toLowerCase();
 
   logger.info(`WhatsApp from ${from}: "${body}"`);
 
-  // Respond 200 immediately — process async to avoid Twilio retries
+  // Respond 200 immediately — process async to avoid webhook retries
   res.sendStatus(200);
 
   try {
@@ -77,7 +87,7 @@ router.post('/whatsapp', validateTwilio, async (req: Request, res: Response) => 
       ].join('\n');
 
     } else {
-      reply = `Unknown command: "${req.body.Body}"\nSend *Help* or *עזרה* for available commands.`;
+      reply = `Unknown command: "${rawText}"\nSend *Help* or *עזרה* for available commands.`;
     }
 
     await sendWhatsAppMessage(from, reply);

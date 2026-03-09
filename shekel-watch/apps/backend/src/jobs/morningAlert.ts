@@ -2,7 +2,7 @@ import { supabase } from '../config/supabase';
 import { getUsdIlsRate } from '../services/currencyService';
 import { calculateArbitrageGaps } from '../services/arbitrageService';
 import { getBatchQuotes } from '../services/yahooFinanceService';
-import { generateMarketSummary } from '../services/geminiService';
+import { generateMarketSummary } from '../services/chatgptService';
 import { sendWhatsAppMessage } from '../services/whatsappService';
 import { nowInIsrael } from '../utils/israelTime';
 import { logger } from '../utils/logger';

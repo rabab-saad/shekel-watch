@@ -1,11 +1,10 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 import { config } from '../config';
 import type { ArbitrageResult } from './arbitrageService';
 import type { QuoteResult } from './yahooFinanceService';
 import type { RateResult } from './currencyService';
 
-const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+const openai = new OpenAI({ apiKey: config.OPENAI_API_KEY });
 
 export interface SummaryInput {
   rate:      RateResult;
@@ -55,6 +54,9 @@ Highlight key trends. Do not invent additional data. Write in third person.
 
 export async function generateMarketSummary(input: SummaryInput): Promise<string> {
   const prompt = buildPrompt(input);
-  const result = await model.generateContent(prompt);
-  return result.response.text();
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: prompt }],
+  });
+  return response.choices[0].message.content ?? '';
 }

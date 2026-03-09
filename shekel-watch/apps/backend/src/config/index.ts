@@ -6,10 +6,10 @@ const envSchema = z.object({
   SUPABASE_URL:              z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   EXCHANGE_RATE_API_KEY:     z.string().min(1),
-  GEMINI_API_KEY:            z.string().min(1),
-  TWILIO_ACCOUNT_SID:        z.string().min(1),
-  TWILIO_AUTH_TOKEN:         z.string().min(1),
-  TWILIO_WHATSAPP_FROM:      z.string().min(1),
+  OPENAI_API_KEY:            z.string().min(1),
+  GREENAPI_INSTANCE_ID:      z.string().min(1),
+  GREENAPI_TOKEN:            z.string().min(1),
+  GREENAPI_WEBHOOK_TOKEN:    z.string().min(1),
   FRONTEND_URL:              z.string().url().default('http://localhost:5173'),
 });
 

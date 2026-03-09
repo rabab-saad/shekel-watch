@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { generateMarketSummary } from '../services/geminiService';
+import { generateMarketSummary } from '../services/chatgptService';
 import { getUsdIlsRate } from '../services/currencyService';
 import { getBatchQuotes } from '../services/yahooFinanceService';
 import { calculateArbitrageGaps } from '../services/arbitrageService';
