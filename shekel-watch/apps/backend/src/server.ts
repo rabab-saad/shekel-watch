@@ -14,7 +14,7 @@ const app = express();
 app.use(helmet());
 app.use(cors({ origin: config.FRONTEND_URL }));
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));  // Required for Twilio webhooks
+app.use(express.urlencoded({ extended: true }));
 app.use(rateLimiter);
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
