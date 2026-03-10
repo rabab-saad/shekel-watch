@@ -4,6 +4,7 @@ import { AppShell } from './components/layout/AppShell';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Watchlist } from './pages/Watchlist';
+import { Profile } from './pages/Profile';
 import { supabase } from './lib/supabaseClient';
 import { useAppStore } from './store/useAppStore';
 
@@ -29,6 +30,7 @@ export default function App() {
       <Route element={<AppShell />}>
         <Route path="/"          element={<Dashboard />} />
         <Route path="/watchlist" element={<Watchlist />} />
+        <Route path="/profile"   element={<Profile />} />
       </Route>
     </Routes>
   );

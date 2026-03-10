@@ -10,6 +10,11 @@ import { logger } from './utils/logger';
 
 const app = express();
 
+// ─── Health (before rate limiter so Railway never gets throttled) ─────────────
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // ─── Security & Parsing ──────────────────────────────────────────────────────
 app.use(helmet());
 app.use(cors({ origin: config.FRONTEND_URL }));
@@ -20,16 +25,13 @@ app.use(rateLimiter);
 // ─── Routes ──────────────────────────────────────────────────────────────────
 app.use('/api', router);
 
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
 // ─── Cron Jobs ───────────────────────────────────────────────────────────────
 startScheduler();
 
 // ─── Start Server ────────────────────────────────────────────────────────────
-app.listen(Number(config.PORT), () => {
-  logger.info(`Shekel-Watch backend running on port ${config.PORT}`);
+const port = parseInt(config.PORT, 10) || 3001;
+app.listen(port, '0.0.0.0', () => {
+  logger.info(`Shekel-Watch backend running on port ${port}`);
 });
 
 export default app;

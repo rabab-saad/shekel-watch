@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 const links = [
   { to: '/',          labelKey: 'dashboard',  icon: '📊' },
   { to: '/watchlist', labelKey: 'watchlist',  icon: '⭐' },
+  { to: '/profile',   labelKey: 'profile',    icon: '⚙️' },
 ];
 
 export function Sidebar() {

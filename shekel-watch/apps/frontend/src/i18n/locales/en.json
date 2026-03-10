@@ -21,5 +21,6 @@
   "market_state":      "Status",
   "manage":            "Manage",
   "empty_watchlist":   "Your watchlist is empty",
-  "refresh":           "Refresh"
+  "refresh":           "Refresh",
+  "profile":           "Profile"
 }

@@ -21,5 +21,6 @@
   "market_state":      "סטטוס",
   "manage":            "נהל",
   "empty_watchlist":   "רשימת המעקב ריקה",
-  "refresh":           "רענן"
+  "refresh":           "רענן",
+  "profile":           "פרופיל"
 }
