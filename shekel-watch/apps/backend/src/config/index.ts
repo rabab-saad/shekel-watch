@@ -17,8 +17,8 @@ const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
   console.error('❌ Invalid environment variables:');
-  console.error(parsed.error.flatten().fieldErrors);
-  process.exit(1);
+  console.error(JSON.stringify(parsed.error.flatten().fieldErrors, null, 2));
+  throw new Error('Missing or invalid environment variables — check Railway Variables tab');
 }
 
 export const config = parsed.data;
