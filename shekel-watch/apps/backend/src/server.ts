@@ -12,7 +12,7 @@ app.get('/health', (_req, res) => {
 // ─── Start listening immediately so Railway healthcheck always passes ─────────
 const port = parseInt(process.env.PORT || '3001', 10);
 app.listen(port, '0.0.0.0', () => {
-  console.log(`Server listening on port ${port}`);
+  console.log(`Server listening on port ${port} — env: ${process.env.NODE_ENV || 'development'}`);
   // Initialize the rest of the app after server is already up
   bootstrap().catch(err => {
     console.error('Bootstrap failed — API routes unavailable:', err.message);
