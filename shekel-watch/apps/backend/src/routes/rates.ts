@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getUsdIlsRate } from '../services/currencyService';
+import { getUsdIlsRate, getAllRates } from '../services/currencyService';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -12,6 +12,17 @@ router.get('/usd-ils', async (_req: Request, res: Response) => {
   } catch (err) {
     logger.error('Failed to fetch USD/ILS rate', err);
     res.status(500).json({ error: 'Failed to fetch exchange rate' });
+  }
+});
+
+// GET /api/rates/all
+router.get('/all', async (_req: Request, res: Response) => {
+  try {
+    const data = await getAllRates();
+    res.json(data);
+  } catch (err) {
+    logger.error('Failed to fetch all currency rates', err);
+    res.status(500).json({ error: 'Failed to fetch currency rates' });
   }
 });
 

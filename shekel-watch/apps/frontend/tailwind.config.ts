@@ -19,6 +19,15 @@ export default {
         hebrew: ['Heebo', 'sans-serif'],
         mono:   ['JetBrains Mono', 'monospace'],
       },
+      keyframes: {
+        ticker: {
+          '0%':   { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-50%)' },
+        },
+      },
+      animation: {
+        ticker: 'ticker 40s linear infinite',
+      },
     },
   },
   plugins: [],

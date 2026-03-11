@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
+import { CurrencyTickerBar } from './CurrencyTickerBar';
 
 export function AppShell() {
   const { i18n } = useTranslation();
@@ -19,6 +20,7 @@ export function AppShell() {
   return (
     <div className={`min-h-screen bg-surface text-white ${isRtl ? 'font-hebrew' : 'font-sans'}`}>
       <Navbar />
+      <CurrencyTickerBar />
       <div className="flex">
         <Sidebar />
         <main className="flex-1 p-6">
