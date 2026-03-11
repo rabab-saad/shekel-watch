@@ -3,6 +3,7 @@ import plotly.express as px
 from services.market_service import get_indices_df
 from services.currency_service import get_rates_df
 from services.crew_service import get_market_summary
+from services.arbitrage_service import get_currency_arbitrage
 
 st.set_page_config(page_title="Dashboard | Shekel-Watch", page_icon="₪", layout="wide")
 
@@ -92,3 +93,57 @@ with col_ai:
         st.info(st.session_state["ai_summary"])
     else:
         st.caption("Click the button above to run the AI agents and get a market summary.")
+
+st.divider()
+
+# ── Currency Arbitrage ────────────────────────────────────────────────────────
+st.subheader("⚡ הזדמנויות ארביטראז׳  |  Currency Arbitrage")
+st.caption(
+    "Compares the direct exchange rate (X → ILS) against the implied rate via USD "
+    "(X → USD → ILS). A gap signals a cheaper conversion route."
+)
+
+if rate_ok:
+    if st.button("🔍 Scan Currency Arbitrage", use_container_width=True):
+        with st.spinner("Fetching direct cross rates and computing gaps…"):
+            vs_usd_map = dict(zip(rates_df["Code"], rates_df["vs USD"]))
+            arb_df = get_currency_arbitrage(vs_usd_map, usd_ils)
+            st.session_state["currency_arb"] = arb_df
+
+    if "currency_arb" in st.session_state:
+        arb_df = st.session_state["currency_arb"]
+        if arb_df.empty:
+            st.info("No cross-rate data available from Twelve Data right now.")
+        else:
+            def _arb_colour(val):
+                if isinstance(val, str) and "⚡" in val:
+                    return "color: #f59e0b; font-weight: bold"
+                return ""
+
+            def _gap_colour(val):
+                if isinstance(val, float):
+                    if val > 0.05:  return "color: #22c55e"
+                    if val < -0.05: return "color: #ef4444"
+                return "color: #94a3b8"
+
+            styled_arb = (
+                arb_df.style
+                .applymap(_gap_colour, subset=["Gap %"])
+                .applymap(_arb_colour, subset=["Signal"])
+                .format({"Gap %": "{:+.4f}%"})
+            )
+            st.dataframe(styled_arb, use_container_width=True, hide_index=True)
+
+            # Bar chart of gaps
+            fig_arb = px.bar(
+                arb_df, x="Pair", y="Gap %",
+                color="Gap %",
+                color_continuous_scale=["#ef4444", "#94a3b8", "#22c55e"],
+                title="Direct vs Via-USD Rate Gap (%)",
+            )
+            fig_arb.update_layout(showlegend=False, height=280, margin=dict(t=40, b=0))
+            st.plotly_chart(fig_arb, use_container_width=True)
+    else:
+        st.caption("Click 'Scan Currency Arbitrage' to check for cross-rate gaps.")
+else:
+    st.warning("Currency rates not loaded — arbitrage scan unavailable.")

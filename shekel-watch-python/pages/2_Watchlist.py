@@ -2,6 +2,8 @@ import streamlit as st
 import plotly.graph_objects as go
 from services.supabase_service import get_watchlist, add_to_watchlist, remove_from_watchlist
 from services.market_service import get_watchlist_df, get_stock_history
+from services.currency_service import get_rates_df
+from services.arbitrage_service import get_watchlist_arbitrage
 
 st.set_page_config(page_title="Watchlist | Shekel-Watch", page_icon="⭐", layout="wide")
 
@@ -93,6 +95,68 @@ if not hist.empty:
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.warning("No price history available for this ticker.")
+
+st.divider()
+
+# ── Watchlist Arbitrage ───────────────────────────────────────────────────────
+st.subheader("⚡ ארביטראז׳ מניות  |  Dual-Listed Arbitrage")
+st.caption(
+    "For Israeli stocks listed on both TASE and NYSE/NASDAQ, compares the TASE price (₪) "
+    "with the foreign price converted to ₪ using the live USD/ILS rate. "
+    "A gap > 0.5 % may signal a trading opportunity."
+)
+
+if st.button("🔍 Scan Watchlist for Arbitrage", use_container_width=True):
+    with st.spinner("Loading dual-listed prices…"):
+        try:
+            _, usd_ils = get_rates_df()
+        except Exception:
+            usd_ils = 3.7   # fallback
+        wl_arb_df = get_watchlist_arbitrage(tickers, usd_ils)
+        st.session_state["wl_arb"] = wl_arb_df
+
+if "wl_arb" in st.session_state:
+    wl_arb_df = st.session_state["wl_arb"]
+    if wl_arb_df.empty:
+        st.info(
+            "No dual-listed pairs found in your watchlist.\n\n"
+            "Try adding stocks like **NICE**, **CHKP**, **MNDY**, **CYBR**, **TEVA** "
+            "and their TASE equivalents (e.g. NICE.TA)."
+        )
+    else:
+        def _gap_col(val):
+            if isinstance(val, float):
+                if val > 0.5:  return "color: #22c55e; font-weight: bold"
+                if val < -0.5: return "color: #ef4444; font-weight: bold"
+            return "color: #94a3b8"
+
+        def _sig_col(val):
+            if isinstance(val, str) and "⚡" in val:
+                return "color: #f59e0b; font-weight: bold"
+            return ""
+
+        styled_wl = (
+            wl_arb_df.style
+            .applymap(_gap_col, subset=["Gap %"])
+            .applymap(_sig_col, subset=["Signal"])
+            .format({"TASE (₪)": "{:,.2f}", "NYSE in ₪": "{:,.2f}",
+                     "NYSE (USD)": "{:,.2f}", "Gap %": "{:+.2f}%"})
+        )
+        st.dataframe(styled_wl, use_container_width=True, hide_index=True)
+
+        fig_wl = go.Figure(go.Bar(
+            x=wl_arb_df["Stock"],
+            y=wl_arb_df["Gap %"],
+            marker_color=["#22c55e" if g > 0 else "#ef4444" for g in wl_arb_df["Gap %"]],
+        ))
+        fig_wl.update_layout(
+            title="TASE vs NYSE Price Gap (%)",
+            xaxis_title="Stock", yaxis_title="Gap %",
+            height=300, margin=dict(t=40, b=0),
+        )
+        st.plotly_chart(fig_wl, use_container_width=True)
+else:
+    st.caption("Click 'Scan Watchlist for Arbitrage' to check your stocks.")
 
 st.divider()
 
