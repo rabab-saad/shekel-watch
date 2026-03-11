@@ -13,11 +13,18 @@ const envSchema = z.object({
   FRONTEND_URL:              z.string().url().default('http://localhost:5173'),
 });
 
+console.log('ENV KEYS PRESENT:', Object.keys(process.env).filter(k =>
+  ['SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY','EXCHANGE_RATE_API_KEY',
+   'OPENAI_API_KEY','GREENAPI_INSTANCE_ID','GREENAPI_TOKEN',
+   'GREENAPI_WEBHOOK_TOKEN','FRONTEND_URL'].includes(k)
+));
+
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
   console.error('❌ Invalid environment variables:');
   console.error(JSON.stringify(parsed.error.flatten().fieldErrors, null, 2));
+  console.error('MISSING FIELDS:', Object.keys(parsed.error.flatten().fieldErrors));
   throw new Error('Missing or invalid environment variables — check Railway Variables tab');
 }
 
