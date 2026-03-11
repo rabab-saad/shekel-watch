@@ -69,6 +69,15 @@ def add_to_watchlist(access_token: str, user_id: str, ticker: str, market: str) 
         return {"success": False, "error": str(e)}
 
 
+def update_profile(access_token: str, user_id: str, updates: dict) -> dict:
+    try:
+        client = get_client(access_token)
+        client.table("profiles").update(updates).eq("id", user_id).execute()
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 def remove_from_watchlist(access_token: str, user_id: str, ticker: str) -> dict:
     try:
         client = get_client(access_token)

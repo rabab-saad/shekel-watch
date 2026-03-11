@@ -1,9 +1,11 @@
 import streamlit as st
 import plotly.graph_objects as go
-from services.supabase_service import get_watchlist, add_to_watchlist, remove_from_watchlist
+from services.supabase_service import get_watchlist, add_to_watchlist, remove_from_watchlist, get_profile
 from services.market_service import get_watchlist_df, get_stock_history
 from services.currency_service import get_rates_df
 from services.arbitrage_service import get_watchlist_arbitrage
+from services.crew_service import compose_whatsapp_alert
+from services.whatsapp_service import send_whatsapp
 
 st.set_page_config(page_title="Watchlist | Shekel-Watch", page_icon="⭐", layout="wide")
 
@@ -157,6 +159,37 @@ if "wl_arb" in st.session_state:
         st.plotly_chart(fig_wl, use_container_width=True)
 else:
     st.caption("Click 'Scan Watchlist for Arbitrage' to check your stocks.")
+
+# ── WhatsApp Alert ────────────────────────────────────────────────────────────
+st.divider()
+st.subheader("📱 שלח התראה  |  Send WhatsApp Alert")
+
+profile = get_profile(token, user.id)
+phone   = profile.get("phone_number")
+enabled = profile.get("whatsapp_enabled", False)
+
+if phone and enabled:
+    if st.button("📲 Send Alert for Active Stock Opportunities", type="primary", use_container_width=True):
+        stk_opps = []
+        if "wl_arb" in st.session_state and not st.session_state["wl_arb"].empty:
+            df_s = st.session_state["wl_arb"]
+            stk_opps = df_s[df_s["Signal"].str.contains("⚡", na=False)].to_dict("records")
+        if not stk_opps:
+            st.warning("No active stock arbitrage opportunities found. Run the scan first.")
+        else:
+            with st.spinner("AI agent composing WhatsApp message…"):
+                message = compose_whatsapp_alert([], stk_opps)
+                result  = send_whatsapp(phone, message)
+            if result["success"]:
+                st.success(f"Alert sent to {phone}!")
+                st.code(message, language=None)
+            else:
+                st.error(f"Failed to send: {result.get('error')}")
+else:
+    st.info(
+        "WhatsApp alerts are not configured. "
+        "Go to **Profile** → add your number and enable alerts."
+    )
 
 st.divider()
 

@@ -2,8 +2,10 @@ import streamlit as st
 import plotly.express as px
 from services.market_service import get_indices_df
 from services.currency_service import get_rates_df
-from services.crew_service import get_market_summary
+from services.crew_service import get_market_summary, compose_whatsapp_alert
 from services.arbitrage_service import get_currency_arbitrage
+from services.supabase_service import get_profile
+from services.whatsapp_service import send_whatsapp
 
 st.set_page_config(page_title="Dashboard | Shekel-Watch", page_icon="₪", layout="wide")
 
@@ -147,3 +149,36 @@ if rate_ok:
         st.caption("Click 'Scan Currency Arbitrage' to check for cross-rate gaps.")
 else:
     st.warning("Currency rates not loaded — arbitrage scan unavailable.")
+
+# ── WhatsApp Alert ────────────────────────────────────────────────────────────
+st.divider()
+st.subheader("📱 שלח התראה  |  Send WhatsApp Alert")
+
+profile = get_profile(token, user.id)
+phone   = profile.get("phone_number")
+enabled = profile.get("whatsapp_enabled", False)
+
+if phone and enabled:
+    if st.button("📲 Send Alert for Active Opportunities", type="primary", use_container_width=True):
+        # Collect only real opportunities (Signal contains ⚡)
+        cur_opps, stk_opps = [], []
+        if "currency_arb" in st.session_state and not st.session_state["currency_arb"].empty:
+            df_c = st.session_state["currency_arb"]
+            cur_opps = df_c[df_c["Signal"].str.contains("⚡", na=False)].to_dict("records")
+        # Note: stock opps live on the Watchlist page; currency ones are here
+        if not cur_opps:
+            st.warning("No active currency arbitrage opportunities found. Run the scan first.")
+        else:
+            with st.spinner("AI agent composing WhatsApp message…"):
+                message = compose_whatsapp_alert(cur_opps, [])
+                result  = send_whatsapp(phone, message)
+            if result["success"]:
+                st.success(f"Alert sent to {phone}!")
+                st.code(message, language=None)
+            else:
+                st.error(f"Failed to send: {result.get('error')}")
+else:
+    st.info(
+        "WhatsApp alerts are not configured. "
+        "Go to **Profile** → add your number and enable alerts."
+    )
