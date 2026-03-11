@@ -6,6 +6,7 @@ const envSchema = z.object({
   SUPABASE_URL:              z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   EXCHANGE_RATE_API_KEY:     z.string().min(1),
+  TWELVE_DATA_API_KEY:       z.string().min(1),
   OPENAI_API_KEY:            z.string().min(1),
   GREENAPI_INSTANCE_ID:      z.string().min(1),
   GREENAPI_TOKEN:            z.string().min(1),
@@ -15,7 +16,7 @@ const envSchema = z.object({
 
 console.log('ENV KEYS PRESENT:', Object.keys(process.env).filter(k =>
   ['SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY','EXCHANGE_RATE_API_KEY',
-   'OPENAI_API_KEY','GREENAPI_INSTANCE_ID','GREENAPI_TOKEN',
+   'TWELVE_DATA_API_KEY','OPENAI_API_KEY','GREENAPI_INSTANCE_ID','GREENAPI_TOKEN',
    'GREENAPI_WEBHOOK_TOKEN','FRONTEND_URL'].includes(k)
 ));
 
