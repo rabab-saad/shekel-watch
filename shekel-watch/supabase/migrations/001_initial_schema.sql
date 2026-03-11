@@ -1,3 +1,6 @@
+-- Required for gen_random_uuid()
+create extension if not exists pgcrypto;
+
 -- User Profiles
 create table if not exists public.profiles (
   id               uuid primary key references auth.users(id) on delete cascade,
@@ -52,26 +55,35 @@ create table if not exists public.arbitrage_log (
 );
 create index if not exists idx_arb_log_ticker on public.arbitrage_log(ticker_tase, logged_at desc);
 
+-- Grants for RLS to be effective for app users
+grant usage on schema public to anon, authenticated;
+grant select, update on public.profiles to authenticated;
+grant select, insert, update, delete on public.watchlist to authenticated;
+
 -- Row Level Security
 alter table public.profiles  enable row level security;
 alter table public.watchlist enable row level security;
 
-drop policy if exists "Users read own profile"    on public.profiles;
-drop policy if exists "Users update own profile"  on public.profiles;
+drop policy if exists "Users read own profile"     on public.profiles;
+drop policy if exists "Users update own profile"   on public.profiles;
 drop policy if exists "Users manage own watchlist" on public.watchlist;
 
 create policy "Users read own profile"
-  on public.profiles for select using (auth.uid() = id);
+  on public.profiles for select using ((select auth.uid()) = id);
 
 create policy "Users update own profile"
-  on public.profiles for update using (auth.uid() = id);
+  on public.profiles for update using ((select auth.uid()) = id);
 
 create policy "Users manage own watchlist"
-  on public.watchlist for all using (auth.uid() = user_id);
+  on public.watchlist for all using ((select auth.uid()) = user_id);
 
 -- Auto-create profile on signup
 create or replace function public.handle_new_user()
-returns trigger language plpgsql security definer as $$
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
 begin
   insert into public.profiles(id)
   values (new.id)
@@ -79,6 +91,8 @@ begin
   return new;
 end;
 $$;
+
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
