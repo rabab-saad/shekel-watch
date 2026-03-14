@@ -45,5 +45,21 @@
   "phase_pre_close":        "Pre-Close",
   "phase_closing_auction":  "Closing Auction",
   "phase_closed":           "Closed",
-  "phase_until":            "until"
+  "phase_until":            "until",
+
+  "onboarding_step1_title":           "Choose Your Style",
+  "onboarding_beginner_title":        "Beginner Investor",
+  "onboarding_beginner_sub":          "Start with ₪100,000 virtual balance. Zero risk.",
+  "onboarding_pro_title":             "Active Trader",
+  "onboarding_pro_sub":               "Arbitrage scanner, advanced alerts, candlestick charts.",
+  "onboarding_continue":              "Continue",
+  "onboarding_balance_title":         "Starting with ₪100,000 🎉",
+  "onboarding_balance_sub":           "You'll learn to trade confidently, with no real money.",
+  "onboarding_watchlist_title":       "Add Tickers to Watch",
+  "onboarding_watchlist_placeholder": "TEVA, CHKP, MNDY",
+  "onboarding_watchlist_hint":        "Comma-separated ticker symbols",
+  "onboarding_whatsapp_title":        "Get a morning briefing on WhatsApp every day",
+  "onboarding_phone_label":           "Phone number",
+  "onboarding_toggle_label":          "Yes, send me daily updates",
+  "onboarding_finish":                "Let's go!"
 }

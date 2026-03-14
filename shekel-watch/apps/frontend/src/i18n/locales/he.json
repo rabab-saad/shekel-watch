@@ -45,5 +45,21 @@
   "phase_pre_close":        "פרה-סגירה",
   "phase_closing_auction":  "מכרז סגירה",
   "phase_closed":           "סגור",
-  "phase_until":            "עד"
+  "phase_until":            "עד",
+
+  "onboarding_step1_title":           "בחר את סגנונך",
+  "onboarding_beginner_title":        "משקיע מתחיל",
+  "onboarding_beginner_sub":          "התחל עם ₪100,000 וירטואלי. אפס סיכון.",
+  "onboarding_pro_title":             "סוחר פעיל",
+  "onboarding_pro_sub":               "סורק ארביטראז', התראות מתקדמות, נרות יפניים.",
+  "onboarding_continue":              "המשך",
+  "onboarding_balance_title":         "מתחיל עם ₪100,000 וירטואלי 🎉",
+  "onboarding_balance_sub":           "תלמד לסחור בביטחון, ללא כסף אמיתי.",
+  "onboarding_watchlist_title":       "הוסף טיקרים למעקב",
+  "onboarding_watchlist_placeholder": "TEVA, CHKP, MNDY",
+  "onboarding_watchlist_hint":        "סמלים מופרדים בפסיקים",
+  "onboarding_whatsapp_title":        "קבל סיכום בוקר בוואטסאפ כל יום",
+  "onboarding_phone_label":           "מספר טלפון",
+  "onboarding_toggle_label":          "כן, שלח לי עדכונים",
+  "onboarding_finish":                "סיום!"
 }
