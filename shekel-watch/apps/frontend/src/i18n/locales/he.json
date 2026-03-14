@@ -22,5 +22,8 @@
   "manage":            "נהל",
   "empty_watchlist":   "רשימת המעקב ריקה",
   "refresh":           "רענן",
-  "profile":           "פרופיל"
+  "profile":           "פרופיל",
+  "mode_simple":       "פשוט",
+  "mode_pro":          "מקצועי",
+  "paper_trading":     "מסחר נייר"
 }

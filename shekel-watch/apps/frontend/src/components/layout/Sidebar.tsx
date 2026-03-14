@@ -2,9 +2,10 @@ import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 const links = [
-  { to: '/',          labelKey: 'dashboard',  icon: '📊' },
-  { to: '/watchlist', labelKey: 'watchlist',  icon: '⭐' },
-  { to: '/profile',   labelKey: 'profile',    icon: '⚙️' },
+  { to: '/',              labelKey: 'dashboard',     icon: '📊' },
+  { to: '/watchlist',     labelKey: 'watchlist',     icon: '⭐' },
+  { to: '/paper-trading', labelKey: 'paper_trading', icon: '📈' },
+  { to: '/profile',       labelKey: 'profile',       icon: '⚙️' },
 ];
 
 export function Sidebar() {

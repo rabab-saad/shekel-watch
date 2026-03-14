@@ -22,5 +22,8 @@
   "manage":            "Manage",
   "empty_watchlist":   "Your watchlist is empty",
   "refresh":           "Refresh",
-  "profile":           "Profile"
+  "profile":           "Profile",
+  "mode_simple":       "Simple",
+  "mode_pro":          "Pro",
+  "paper_trading":     "Paper Trading"
 }

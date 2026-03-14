@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getBatchQuotes, getQuote } from '../services/yahooFinanceService';
+import { getBatchQuotes, getQuote, getHistory } from '../services/yahooFinanceService';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -20,6 +20,18 @@ router.get('/', async (req: Request, res: Response) => {
   } catch (err) {
     logger.error('Failed to fetch batch quotes', err);
     res.status(500).json({ error: 'Failed to fetch stock data' });
+  }
+});
+
+// GET /api/stocks/:ticker/history?period=3mo
+router.get('/:ticker/history', async (req: Request, res: Response) => {
+  const period = (req.query.period as string) || '3mo';
+  try {
+    const bars = await getHistory(req.params.ticker, period as any);
+    res.json(bars);
+  } catch (err) {
+    logger.error(`Failed to fetch history for ${req.params.ticker}`, err);
+    res.status(500).json({ error: `Failed to fetch history for ${req.params.ticker}` });
   }
 });
 

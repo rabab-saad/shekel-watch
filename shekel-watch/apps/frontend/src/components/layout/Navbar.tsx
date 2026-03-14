@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { LanguageToggle } from '../ui/LanguageToggle';
+import { ModeToggle } from './ModeToggle';
 import { useExchangeRate } from '../../hooks/useExchangeRate';
 import { useAppStore } from '../../store/useAppStore';
 import { supabase } from '../../lib/supabaseClient';
@@ -29,6 +30,7 @@ export function Navbar() {
       )}
 
       <div className="flex items-center gap-3">
+        <ModeToggle />
         <LanguageToggle />
         {user ? (
           <button
