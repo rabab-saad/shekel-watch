@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { LanguageToggle } from '../ui/LanguageToggle';
-import { ModeToggle } from './ModeToggle';
+import { LanguageToggle }  from '../ui/LanguageToggle';
+import { ModeToggle }      from './ModeToggle';
+import { TASEPhaseTimer }  from '../TASEPhaseTimer';
 import { useExchangeRate } from '../../hooks/useExchangeRate';
-import { useAppStore } from '../../store/useAppStore';
-import { supabase } from '../../lib/supabaseClient';
+import { useAppStore }     from '../../store/useAppStore';
+import { supabase }        from '../../lib/supabaseClient';
 
 export function Navbar() {
   const { t } = useTranslation();
@@ -30,6 +31,7 @@ export function Navbar() {
       )}
 
       <div className="flex items-center gap-3">
+        <TASEPhaseTimer />
         <ModeToggle />
         <LanguageToggle />
         {user ? (

@@ -5,6 +5,7 @@ import arbitrageRouter  from './arbitrage';
 import summaryRouter    from './summary';
 import whatsappRouter   from './whatsapp';
 import paperTradeRouter from './paperTrade';
+import inflationRouter  from './inflation';
 
 export const router = Router();
 
@@ -14,3 +15,4 @@ router.use('/arbitrage',   arbitrageRouter);
 router.use('/summary',     summaryRouter);
 router.use('/webhook',     whatsappRouter);   // POST /api/webhook/whatsapp
 router.use('/paper-trade', paperTradeRouter); // POST /api/paper-trade
+router.use('/inflation',   inflationRouter);  // GET  /api/inflation

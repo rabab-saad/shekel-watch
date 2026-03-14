@@ -1,6 +1,9 @@
 import cron from 'node-cron';
-import { runMorningAlert } from './morningAlert';
-import { runRateSnapshot } from './rateSnapshot';
+import { runMorningAlert }      from './morningAlert';
+import { runRateSnapshot }      from './rateSnapshot';
+import { runUpdateRiskScores }  from './updateRiskScores';
+import { runArbitrageScan }     from './arbitrageScan';
+import { runVolatilityMonitor } from './volatilityMonitor';
 import { logger } from '../utils/logger';
 
 export function startScheduler(): void {
@@ -17,5 +20,21 @@ export function startScheduler(): void {
     await runRateSnapshot();
   });
 
-  logger.info('Cron scheduler started (morning alerts Mon–Fri, hourly snapshots)');
+  // Risk score update: Mon–Fri 06:00 UTC (= 08:00 IST)
+  cron.schedule('0 6 * * 1-5', async () => {
+    logger.info('Running risk score update job');
+    await runUpdateRiskScores();
+  });
+
+  // Arbitrage scan: every 5 min Mon–Fri (job itself checks 09:00–17:30 IST)
+  cron.schedule('*/5 * * * 1-5', async () => {
+    await runArbitrageScan();
+  });
+
+  // Volatility monitor: every 10 min Mon–Sun (job gates itself to 10:00–17:30 IST, Sun–Thu)
+  cron.schedule('*/10 * * * *', async () => {
+    await runVolatilityMonitor();
+  });
+
+  logger.info('Cron scheduler started (morning alerts, hourly snapshots, daily risk scores, arbitrage scan, volatility monitor)');
 }
