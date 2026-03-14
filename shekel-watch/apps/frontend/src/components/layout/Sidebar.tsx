@@ -8,6 +8,8 @@ const links = [
   { to: '/profile',       labelKey: 'profile',       icon: '⚙️' },
 ];
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? '';
+
 export function Sidebar() {
   const { t } = useTranslation();
 
@@ -30,6 +32,15 @@ export function Sidebar() {
           <span>{t(labelKey)}</span>
         </NavLink>
       ))}
+      <a
+        href={`${BACKEND_URL}/streamlit`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm mb-1 transition-colors text-muted hover:text-white hover:bg-white/5"
+      >
+        <span>🧪</span>
+        <span>{t('analytics')}</span>
+      </a>
     </aside>
   );
 }
