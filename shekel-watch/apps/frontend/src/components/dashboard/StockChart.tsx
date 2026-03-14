@@ -12,6 +12,7 @@ import {
 import { useAppStore } from '../../store/useAppStore';
 import { useStockHistory, type HistoryPeriod } from '../../hooks/useStockHistory';
 import { Spinner } from '../ui/Spinner';
+import { TermTooltip } from '../TermTooltip';
 
 // ── Indicator math ──────────────────────────────────────────────────────────
 
@@ -226,5 +227,16 @@ export function StockChart({ ticker, period = '3mo' }: Props) {
   if (error)     return <p className="text-sm text-muted py-4">Failed to load chart data.</p>;
   if (!bars.length) return <p className="text-sm text-muted py-4">No history available.</p>;
 
-  return <div ref={containerRef} className="w-full" />;
+  return (
+    <>
+      {isPro && (
+        <div className="flex gap-3 text-xs text-muted mb-1 px-1">
+          <TermTooltip term="RSI">RSI (14)</TermTooltip>
+          <span className="opacity-40">·</span>
+          <TermTooltip term="MACD">MACD (12,26,9)</TermTooltip>
+        </div>
+      )}
+      <div ref={containerRef} className="w-full" />
+    </>
+  );
 }

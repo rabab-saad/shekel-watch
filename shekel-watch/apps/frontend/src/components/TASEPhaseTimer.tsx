@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TASE_HOLIDAYS, EARLY_CLOSE_DATES } from '../data/holidays';
+import { TermTooltip } from './TermTooltip';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -119,6 +120,26 @@ function formatCountdown(secs: number): string {
   return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
 }
 
+// ── Phase label renderer (wraps known financial terms with TermTooltip) ───────
+
+/** Terms in the English half of a biLabel that should get a TermTooltip */
+const PHASE_TERM_TOOLTIPS = new Set(['Closing Auction']);
+
+function renderBiLabel(biLabel: string): ReactNode {
+  const [he, en] = biLabel.split(' | ');
+  if (!en) return biLabel;
+  return PHASE_TERM_TOOLTIPS.has(en)
+    ? <>{he} | <TermTooltip term={en}>{en}</TermTooltip></>
+    : biLabel;
+}
+
+function renderEnPart(biLabel: string): ReactNode {
+  const en = biLabel.split(' | ')[1] ?? biLabel;
+  return PHASE_TERM_TOOLTIPS.has(en)
+    ? <TermTooltip term={en}>{en}</TermTooltip>
+    : en;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function TASEPhaseTimer() {
@@ -138,13 +159,13 @@ export function TASEPhaseTimer() {
     <div className="hidden sm:flex items-center gap-1.5">
       {/* Phase badge */}
       <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${config.badge}`}>
-        {config.biLabel}
+        {renderBiLabel(config.biLabel)}
       </span>
 
       {/* Countdown */}
       {cd && (
         <span className="text-xs text-muted font-mono whitespace-nowrap">
-          ⏱ {cd} {t('phase_until')} {nextCfg.biLabel.split(' | ')[1]}
+          ⏱ {cd} {t('phase_until')} {renderEnPart(nextCfg.biLabel)}
         </span>
       )}
     </div>
