@@ -1,0 +1,2 @@
+ALTER TABLE public.watchlist
+  ADD COLUMN IF NOT EXISTS risk_score NUMERIC DEFAULT 0;
