@@ -1,13 +1,14 @@
 import { useEffect } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import type { User } from '@supabase/supabase-js';
-import { AppShell }     from './components/layout/AppShell';
-import { Dashboard }    from './pages/Dashboard';
-import { Login }        from './pages/Login';
-import { Watchlist }    from './pages/Watchlist';
-import { Profile }      from './pages/Profile';
-import { PaperTrading } from './pages/PaperTrading';
-import { Onboarding }   from './pages/Onboarding';
+import { AppShell }      from './components/layout/AppShell';
+import { Dashboard }     from './pages/Dashboard';
+import { Login }         from './pages/Login';
+import { Watchlist }     from './pages/Watchlist';
+import { Profile }       from './pages/Profile';
+import { PaperTrading }  from './pages/PaperTrading';
+import { Onboarding }    from './pages/Onboarding';
+import { ResetPassword } from './pages/ResetPassword';
 import { supabase } from './lib/supabaseClient';
 import { useAppStore } from './store/useAppStore';
 
@@ -39,7 +40,11 @@ export default function App() {
       void checkUser(session?.user ?? null);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        navigate('/reset-password');
+        return;
+      }
       void checkUser(session?.user ?? null);
     });
 
@@ -48,8 +53,9 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/login"      element={<Login />} />
-      <Route path="/onboarding" element={<Onboarding />} />
+      <Route path="/login"          element={<Login />} />
+      <Route path="/onboarding"     element={<Onboarding />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route element={<AppShell />}>
         <Route path="/"              element={<Dashboard />} />
         <Route path="/watchlist"     element={<Watchlist />} />

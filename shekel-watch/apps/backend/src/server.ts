@@ -1,7 +1,6 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import { createProxyMiddleware } from 'http-proxy-middleware';
 
 const app = express();
 
@@ -9,14 +8,6 @@ const app = express();
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
-
-// ─── Streamlit proxy ──────────────────────────────────────────────────────────
-const streamlitProxy = createProxyMiddleware({
-  target: 'http://localhost:8501',
-  changeOrigin: true,
-  ws: true,
-});
-app.use('/streamlit', streamlitProxy);
 
 // ─── Start listening immediately so Railway healthcheck always passes ─────────
 const port = parseInt(process.env.PORT || '3001', 10);
@@ -27,9 +18,6 @@ const server = app.listen(port, '0.0.0.0', () => {
     console.error('Bootstrap failed — API routes unavailable:', err.message);
   });
 });
-
-// WebSocket upgrade for Streamlit
-server.on('upgrade', streamlitProxy.upgrade as Parameters<typeof server.on>[1]);
 
 async function bootstrap() {
   // Dynamic imports so config errors don't prevent server from starting

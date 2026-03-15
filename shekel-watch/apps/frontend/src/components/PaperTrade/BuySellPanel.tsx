@@ -1,10 +1,6 @@
 import { useState } from 'react';
 import apiClient from '../../lib/apiClient';
-
-interface QuoteResult {
-  price:    number;
-  currency: string;
-}
+import type { QuoteResult } from '../../types';
 
 export function BuySellPanel() {
   const [symbol,   setSymbol]   = useState('');

@@ -3,16 +3,12 @@ import { supabase } from '../../lib/supabaseClient';
 import apiClient from '../../lib/apiClient';
 import { useAppStore } from '../../store/useAppStore';
 import { Spinner } from '../ui/Spinner';
+import type { QuoteResult } from '../../types';
 
 interface PortfolioRow {
   symbol:        string;
   quantity:      number;
   avg_buy_price: number;
-}
-
-interface QuoteResult {
-  ticker: string;
-  price:  number;
 }
 
 interface DisplayRow extends PortfolioRow {
