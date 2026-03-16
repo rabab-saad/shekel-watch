@@ -2,7 +2,7 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "streamlit run apps/streamlit-frontend/app.py --server.port $PORT --server.headless true"
+startCommand = "streamlit run app.py --server.port $PORT --server.headless true"
 healthcheckPath = "/_stcore/health"
 healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
