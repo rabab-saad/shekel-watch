@@ -3,14 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": [
-    "apps/frontend",
     "apps/backend"
   ],
   "scripts": {
     "dev:backend": "npm run dev --workspace=apps/backend",
-    "dev:frontend": "npm run dev --workspace=apps/frontend",
-    "build:backend": "npm run build --workspace=apps/backend",
-    "build:frontend": "npm run build --workspace=apps/frontend"
+    "build:backend": "npm run build --workspace=apps/backend"
   },
   "dependencies": {
     "yahoo-finance2": "^2.11.3"
