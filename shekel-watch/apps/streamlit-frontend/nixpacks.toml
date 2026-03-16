@@ -4,8 +4,8 @@ nixPkgs = ["python311"]
 [phases.install]
 cmds = [
   "python3 -m venv /opt/venv",
-  "/opt/venv/bin/pip install -r requirements.txt"
+  "/opt/venv/bin/pip install -r apps/streamlit-frontend/requirements.txt"
 ]
 
 [start]
-cmd = "/opt/venv/bin/streamlit run app.py --server.port $PORT --server.headless true"
+cmd = "/opt/venv/bin/streamlit run apps/streamlit-frontend/app.py --server.port $PORT --server.headless true"

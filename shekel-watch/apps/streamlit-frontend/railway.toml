@@ -1,6 +1,5 @@
 [build]
 builder = "nixpacks"
-buildCommand = "pip install -r apps/streamlit-frontend/requirements.txt"
 
 [deploy]
 startCommand = "streamlit run apps/streamlit-frontend/app.py --server.port $PORT --server.headless true"
