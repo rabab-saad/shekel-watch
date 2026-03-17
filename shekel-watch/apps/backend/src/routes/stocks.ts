@@ -5,32 +5,77 @@ import { logger } from '../utils/logger';
 
 const router = Router();
 
+// ── Yahoo Finance crumb cache ─────────────────────────────────────────────────
+// Yahoo Finance's v1 search API requires a session cookie + crumb since ~2024.
+// We fetch them once and cache for 25 minutes.
+const _YH_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+let _yhCrumb   = '';
+let _yhCookie  = '';
+let _yhExpiry  = 0;
+
+async function ensureYahooCrumb(): Promise<void> {
+  if (_yhCrumb && Date.now() < _yhExpiry) return;
+
+  // 1. Visit Yahoo Finance to get a session cookie
+  const homeRes = await fetch('https://finance.yahoo.com/', {
+    headers: { 'User-Agent': _YH_UA, 'Accept': 'text/html' },
+    redirect: 'follow',
+  });
+  const rawCookie = homeRes.headers.get('set-cookie') ?? '';
+  // Keep only the key=value part of each cookie directive
+  _yhCookie = rawCookie.split(',').map(c => c.split(';')[0].trim()).join('; ');
+
+  // 2. Exchange the cookie for a crumb
+  const crumbRes = await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb', {
+    headers: { 'User-Agent': _YH_UA, 'Cookie': _yhCookie },
+  });
+  _yhCrumb  = (await crumbRes.text()).trim();
+  _yhExpiry = Date.now() + 25 * 60 * 1000; // 25 minutes
+}
+
 // GET /api/stocks/search?q=apple
 router.get('/search', async (req: Request, res: Response) => {
   const q = String(req.query.q ?? '').trim();
   if (!q) { res.status(400).json({ error: 'q is required' }); return; }
   try {
-    // validateResult: false bypasses yahoo-finance2's strict schema validation,
-    // which throws FailedYahooValidationError on any unexpected field in the response.
+    await ensureYahooCrumb();
+
+    const url =
+      `https://query1.finance.yahoo.com/v1/finance/search` +
+      `?q=${encodeURIComponent(q)}&quotesCount=10&newsCount=0` +
+      `&enableFuzzyQuery=false&quotesQueryId=tss_match` +
+      `&crumb=${encodeURIComponent(_yhCrumb)}`;
+
+    const res2 = await fetch(url, {
+      headers: {
+        'User-Agent':      _YH_UA,
+        'Cookie':          _yhCookie,
+        'Accept':          'application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer':         'https://finance.yahoo.com/',
+      },
+    });
+
+    if (!res2.ok) throw new Error(`Yahoo returned HTTP ${res2.status}`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = await (yahooFinance as any).search(
-      q,
-      { quotesCount: 10, newsCount: 0 },
-      { validateResult: false },
-    );
+    const data = await res2.json() as any;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const quotes = ((result.quotes as any[]) || [])
+    const quotes = ((data?.quotes ?? []) as any[])
       .filter((r: { symbol?: string; quoteType?: string }) => r.symbol && r.quoteType !== 'OPTION')
       .slice(0, 10)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((r: any) => ({
-        symbol:   r.symbol   as string,
+        symbol:   r.symbol                                as string,
         name:     (r.longname || r.shortname || r.symbol) as string,
-        typeDisp: (r.typeDisp || r.quoteType || 'EQUITY')  as string,
-        exchange: (r.exchange || '') as string,
+        typeDisp: (r.typeDisp || r.quoteType || 'EQUITY') as string,
+        exchange: (r.exchange || '')                      as string,
       }));
+
     res.json({ quotes });
   } catch (err: unknown) {
+    _yhCrumb  = '';   // force refresh on next call
+    _yhExpiry = 0;
     const msg = err instanceof Error ? err.message : String(err);
     logger.error('Stock search failed', { query: q, error: msg });
     res.status(500).json({ error: `Search failed: ${msg}` });
