@@ -32,11 +32,14 @@ function stdDev(values: number[]): number {
 }
 
 async function getSymbolMeta(ticker: string) {
+  // validateResult: false prevents FailedYahooValidationError on unexpected fields
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const summaryRes = await (yahooFinance as any).quoteSummary(ticker, {
-    modules: ['price', 'summaryDetail', 'assetProfile', 'defaultKeyStatistics'],
+  const summaryRes = await (yahooFinance as any).quoteSummary(
+    ticker,
+    { modules: ['price', 'summaryDetail', 'assetProfile', 'defaultKeyStatistics'] },
+    { validateResult: false },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  }).catch(() => null) as any;
+  ).catch(() => null) as any;
 
   // 30-day daily volatility
   let volatility30d = 0;

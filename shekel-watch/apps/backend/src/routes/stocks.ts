@@ -10,8 +10,14 @@ router.get('/search', async (req: Request, res: Response) => {
   const q = String(req.query.q ?? '').trim();
   if (!q) { res.status(400).json({ error: 'q is required' }); return; }
   try {
+    // validateResult: false bypasses yahoo-finance2's strict schema validation,
+    // which throws FailedYahooValidationError on any unexpected field in the response.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = await (yahooFinance as any).search(q, { newsCount: 0, quotesCount: 10 });
+    const result = await (yahooFinance as any).search(
+      q,
+      { quotesCount: 10, newsArticlesCount: 0 },
+      { validateResult: false },
+    );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const quotes = ((result.quotes as any[]) || [])
       .filter((r: { symbol?: string; quoteType?: string }) => r.symbol && r.quoteType !== 'OPTION')
@@ -24,9 +30,10 @@ router.get('/search', async (req: Request, res: Response) => {
         exchange: (r.exchange || '') as string,
       }));
     res.json({ quotes });
-  } catch (err) {
-    logger.error('Stock search failed', err);
-    res.status(500).json({ error: 'Search failed' });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error('Stock search failed', { query: q, error: msg });
+    res.status(500).json({ error: `Search failed: ${msg}` });
   }
 });
 
@@ -37,9 +44,11 @@ router.get('/:ticker/detail', async (req: Request, res: Response) => {
     const [quoteRes, summaryRes] = await Promise.allSettled([
       getQuote(ticker),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (yahooFinance as any).quoteSummary(ticker, {
-        modules: ['price', 'summaryDetail', 'assetProfile', 'defaultKeyStatistics'],
-      }),
+      (yahooFinance as any).quoteSummary(
+        ticker,
+        { modules: ['price', 'summaryDetail', 'assetProfile', 'defaultKeyStatistics'] },
+        { validateResult: false },
+      ),
     ]);
 
     const q = quoteRes.status   === 'fulfilled' ? quoteRes.value   : null;
