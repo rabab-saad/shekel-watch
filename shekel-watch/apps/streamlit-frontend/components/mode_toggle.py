@@ -6,31 +6,33 @@ Renders in the sidebar. Persists to session_state and updates profiles via Supab
 import streamlit as st
 from services.supabase_client import update_profile
 
-_OPTIONS = ["🌱 Simple / פשוט", "⚡ Pro / מקצועי"]
-_MODE_MAP = {"🌱 Simple / פשוט": "beginner", "⚡ Pro / מקצועי": "pro"}
-_REVERSE_MAP = {"beginner": "🌱 Simple / פשוט", "pro": "⚡ Pro / מקצועי"}
-
 
 def render_mode_toggle() -> str:
     """
     Renders the mode radio in the sidebar.
     Returns the current mode string: 'beginner' or 'pro'.
     """
-    current_mode = st.session_state.get("trading_mode", "beginner")
-    current_label = _REVERSE_MAP.get(current_mode, _OPTIONS[0])
+    from utils.i18n import t
+
+    options_map   = {"beginner": t("mode_beginner"), "pro": t("mode_pro")}
+    display_opts  = list(options_map.values())
+    reverse_map   = {v: k for k, v in options_map.items()}
+
+    current_mode  = st.session_state.get("trading_mode", "beginner")
+    current_label = options_map.get(current_mode, display_opts[0])
 
     selected = st.sidebar.radio(
-        "Trading Mode",
-        options=_OPTIONS,
-        index=_OPTIONS.index(current_label),
+        t("trading_mode"),
+        options=display_opts,
+        index=display_opts.index(current_label) if current_label in display_opts else 0,
         key="mode_radio",
     )
 
-    new_mode = _MODE_MAP[selected]
+    new_mode = reverse_map.get(selected, "beginner")
 
     if new_mode != current_mode:
         st.session_state["trading_mode"] = new_mode
-        token = st.session_state.get("access_token")
+        token   = st.session_state.get("access_token")
         user_id = st.session_state.get("user_id")
         if token and user_id:
             update_profile(token, user_id, {"trading_mode": new_mode})

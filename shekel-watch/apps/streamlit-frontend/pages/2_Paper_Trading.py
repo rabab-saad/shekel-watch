@@ -18,6 +18,7 @@ st.set_page_config(page_title="Paper Trading — Shekel-Watch", page_icon="💹"
 from streamlit_autorefresh import st_autorefresh
 from components.auth import require_auth, render_sidebar_user
 from components.mode_toggle import render_mode_toggle
+from components.lang_selector import render_lang_selector
 from services.api_client import APIClient, APIError
 from services.supabase_client import (
     get_profile,
@@ -27,13 +28,17 @@ from services.supabase_client import (
     remove_portfolio_position,
 )
 from services.formatters import fmt_ils, fmt_pct
+from utils.i18n import t, inject_dir
 
 if not require_auth():
     st.stop()
 
+inject_dir()
+
 with st.sidebar:
-    st.markdown("## 📊 Shekel-Watch")
+    st.markdown(t("sidebar_title"))
     st.divider()
+    render_lang_selector()
     render_mode_toggle()
     st.divider()
     render_sidebar_user()
@@ -107,21 +112,18 @@ risk_level        = profile.get("risk_level") or "medium"
 # ── First-visit: Investment Amount Setup ──────────────────────────────────────
 
 if investment_amount < 1000:
-    st.title("💹 Paper Trading — Setup")
-    st.markdown(
-        "Welcome to the **Portfolio Builder**!  \n"
-        "Set your total virtual investment amount to get started."
-    )
+    st.title(t("setup_title"))
+    st.markdown(t("setup_description"))
     with st.form("setup_form"):
         amt = st.number_input(
-            "Total Investment Amount (₪ NIS)",
+            t("total_investment_label"),
             min_value=1000.0,
             max_value=10_000_000.0,
             value=100_000.0,
             step=1000.0,
             format="%.0f",
         )
-        submitted = st.form_submit_button("Start Building Portfolio", use_container_width=True)
+        submitted = st.form_submit_button(t("start_portfolio"), use_container_width=True)
     if submitted:
         res = update_investment_config(token, user_id, investment_amount=amt, risk_level="medium")
         if res.get("success"):
@@ -133,7 +135,7 @@ if investment_amount < 1000:
 
 # ── Page header ───────────────────────────────────────────────────────────────
 
-st.title("💹 Paper Trading — Portfolio Builder")
+st.title(t("paper_trading_title"))
 
 positions = get_virtual_portfolio(token, user_id)
 
@@ -142,18 +144,22 @@ remaining       = investment_amount - total_allocated
 pct_used        = (total_allocated / investment_amount * 100) if investment_amount else 0
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Total Budget",     fmt_ils(investment_amount))
-c2.metric("Allocated",        fmt_ils(total_allocated),  f"{pct_used:.1f}%")
-c3.metric("Unallocated Cash", fmt_ils(remaining))
-rl_icons = {"low": "🟢 Low", "medium": "🟡 Medium", "high": "🔴 High"}
-c4.metric("Risk Level",       rl_icons.get(risk_level, risk_level.capitalize()))
+c1.metric(t("total_budget"),     fmt_ils(investment_amount))
+c2.metric(t("allocated"),        fmt_ils(total_allocated),  f"{pct_used:.1f}%")
+c3.metric(t("unallocated_cash"), fmt_ils(remaining))
+rl_icons = {
+    "low":    t("risk_low"),
+    "medium": t("risk_medium"),
+    "high":   t("risk_high"),
+}
+c4.metric(t("risk_level"), rl_icons.get(risk_level, risk_level.capitalize()))
 
 st.divider()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 
 tab_search, tab_portfolio, tab_analysis, tab_ai = st.tabs(
-    ["🔍 Search & Add", "📊 Portfolio", "📈 Analysis", "🤖 AI Suggestions"]
+    [t("tab_search"), t("tab_portfolio"), t("tab_analysis"), t("tab_ai")]
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -161,40 +167,40 @@ tab_search, tab_portfolio, tab_analysis, tab_ai = st.tabs(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 with tab_search:
-    st.subheader("Search for any instrument")
-    st.caption("Stocks · ETFs · Crypto · Forex · Indices · Bonds · Commodities")
+    st.subheader(t("search_instruments"))
+    st.caption(t("search_caption"))
 
     col_q, col_btn = st.columns([4, 1])
     with col_q:
         query = st.text_input(
             "Search",
-            placeholder="e.g. Apple, AAPL, BTC-USD, SPY, Gold…",
+            placeholder=t("search_placeholder"),
             label_visibility="collapsed",
             key="search_query",
         )
     with col_btn:
-        do_search = st.button("Search 🔍", use_container_width=True)
+        do_search = st.button(t("search_btn"), use_container_width=True)
 
     if do_search and query:
-        with st.spinner("Searching…"):
+        with st.spinner(t("searching")):
             try:
                 result = client.search_stocks(query)
                 hits   = result.get("quotes", [])
             except APIError as e:
                 hits = []
-                st.error(f"Search failed: {e.message}")
+                st.error(t("search_failed_msg").format(error=e.message))
 
         if not hits:
-            st.info("No results found. Try a different query.")
+            st.info(t("no_results"))
         else:
-            st.markdown(f"**{len(hits)} result{'s' if len(hits) != 1 else ''}** — click a row to view details.")
+            st.markdown(t("results_found").format(n=len(hits)))
             for i, h in enumerate(hits):
                 ca, cb, cc, cd, ce = st.columns([1.5, 3.5, 1.2, 1.2, 1])
                 ca.markdown(f"**{h.get('symbol', '')}**")
                 cb.write(h.get("name", ""))
                 cc.write(h.get("typeDisp", ""))
                 cd.write(h.get("exchange", ""))
-                if ce.button("Select", key=f"sel_{h['symbol']}_{i}"):
+                if ce.button(t("select"), key=f"sel_{h['symbol']}_{i}"):
                     st.session_state["selected_ticker"] = h["symbol"]
                     st.session_state["selected_name"]   = h.get("name", h["symbol"])
 
@@ -206,7 +212,7 @@ with tab_search:
         sel_name = st.session_state.get("selected_name", selected)
         st.subheader(f"📋 {selected}  ·  {sel_name}")
 
-        with st.spinner(f"Loading {selected}…"):
+        with st.spinner(t("loading_symbol").format(ticker=selected)):
             try:
                 detail          = client.get_stock_detail(selected)
                 is_detail_stale = False
@@ -216,25 +222,25 @@ with tab_search:
                 is_detail_stale = bool(detail)
 
         if not detail:
-            st.warning("Could not load instrument details.")
+            st.warning(t("could_not_load_detail"))
         else:
             if is_detail_stale:
-                st.warning("⚠ Showing last known data — live fetch failed.")
+                st.warning(t("stale_data_warning"))
 
             # Key metrics row
             m1, m2, m3, m4, m5, m6 = st.columns(6)
             cur_symbol = detail.get("currency", "")
-            m1.metric("Price",    f"{cur_symbol} {detail.get('price', 0):.4f}")
-            m2.metric("Change",   fmt_pct(detail.get("changePercent", 0)))
-            m3.metric("Mkt Cap",  _fmt_large(detail.get("marketCap")))
-            m4.metric("P/E",      f"{detail.get('pe'):.1f}" if detail.get("pe") else "—")
-            m5.metric("52W High", f"{detail.get('week52High'):.2f}" if detail.get("week52High") else "—")
-            m6.metric("52W Low",  f"{detail.get('week52Low'):.2f}"  if detail.get("week52Low")  else "—")
+            m1.metric(t("price"),    f"{cur_symbol} {detail.get('price', 0):.4f}")
+            m2.metric(t("change"),   fmt_pct(detail.get("changePercent", 0)))
+            m3.metric(t("mkt_cap"),  _fmt_large(detail.get("marketCap")))
+            m4.metric(t("pe"),       f"{detail.get('pe'):.1f}" if detail.get("pe") else "—")
+            m5.metric(t("week52_high"), f"{detail.get('week52High'):.2f}" if detail.get("week52High") else "—")
+            m6.metric(t("week52_low"),  f"{detail.get('week52Low'):.2f}"  if detail.get("week52Low")  else "—")
 
             sec_parts = [detail.get("sector"), detail.get("industry")]
             sec_line  = "  ·  ".join(s for s in sec_parts if s)
             if sec_line:
-                st.caption(f"Sector / Industry: {sec_line}")
+                st.caption(t("sector_industry").format(val=sec_line))
 
             # Price chart
             period_opts = {
@@ -242,7 +248,7 @@ with tab_search:
                 "3 Months": "3mo", "1 Year": "1y",
             }
             period_label = st.select_slider(
-                "Chart Period", options=list(period_opts.keys()), value="1 Month",
+                t("chart_period"), options=list(period_opts.keys()), value="1 Month",
                 key="detail_period",
             )
             try:
@@ -262,40 +268,39 @@ with tab_search:
                 fig.update_layout(margin=dict(t=40, b=0, l=0, r=0), height=280)
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                st.info("Chart data unavailable for this instrument.")
+                st.info(t("chart_unavailable"))
 
             # Add to Portfolio
-            st.markdown("#### Add to Portfolio")
+            st.markdown(f"#### {t('add_to_portfolio_heading')}")
 
             existing_alloc = next(
                 (float(p["quantity"]) for p in positions if p["symbol"] == selected), 0.0
             )
             if existing_alloc > 0:
-                st.info(f"Already allocated {fmt_ils(existing_alloc)} in {selected}. "
-                        "Submitting a new amount replaces the existing position.")
+                st.info(t("already_allocated").format(amount=fmt_ils(existing_alloc), ticker=selected))
 
             max_add = remaining + existing_alloc
 
             with st.form(f"add_form_{selected}"):
                 alloc = st.number_input(
-                    "Allocation Amount (₪ NIS)",
+                    t("allocation_amount"),
                     min_value=100.0,
                     max_value=float(max(max_add, 100.0)),
                     value=float(min(10_000.0, max(max_add, 100.0))),
                     step=100.0,
                     format="%.0f",
-                    help=f"Available budget: {fmt_ils(max_add)}",
+                    help=t("available_budget_help").format(budget=fmt_ils(max_add)),
                 )
-                add_submitted = st.form_submit_button("Add to Portfolio ✅", use_container_width=True)
+                add_submitted = st.form_submit_button(t("add_btn"), use_container_width=True)
 
             if add_submitted:
                 if alloc > max_add + 0.01:
-                    st.error(f"Exceeds available budget ({fmt_ils(max_add)}).")
+                    st.error(t("exceeds_budget").format(budget=fmt_ils(max_add)))
                 else:
                     usd_rate      = _usd_ils()
                     cur_price_ils = _price_in_ils(selected, usd_rate)
                     if cur_price_ils <= 0:
-                        st.error("Could not fetch live price. Try again in a moment.")
+                        st.error(t("fetch_price_failed"))
                     else:
                         res = upsert_portfolio_position(
                             token, user_id,
@@ -305,54 +310,58 @@ with tab_search:
                             currency      = detail.get("currency", "USD"),
                         )
                         if res.get("success"):
-                            st.success(f"Added {fmt_ils(alloc)} in **{selected}** to your portfolio!")
+                            st.success(t("added_success").format(amount=fmt_ils(alloc), ticker=selected))
                             _load_profile.clear()
                             _live_quote.clear()
                             st.rerun()
                         else:
-                            st.error(f"Failed to save: {res.get('error')}")
+                            st.error(t("failed_to_save").format(error=res.get("error")))
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 2: PORTFOLIO
 # ═══════════════════════════════════════════════════════════════════════════════
 
 with tab_portfolio:
-    st.subheader("My Portfolio")
+    st.subheader(t("my_portfolio"))
 
     # Settings
-    with st.expander("⚙️ Investment Settings", expanded=False):
+    with st.expander(t("investment_settings"), expanded=False):
         with st.form("settings_form"):
             new_amt = st.number_input(
-                "Total Investment Amount (₪)",
+                t("total_investment_amount"),
                 min_value=1000.0,
                 value=investment_amount,
                 step=1000.0,
                 format="%.0f",
             )
             new_risk = st.select_slider(
-                "Risk Level",
+                t("risk_level"),
                 options=["low", "medium", "high"],
                 value=risk_level,
-                format_func=lambda x: {"low": "🟢 Low", "medium": "🟡 Medium", "high": "🔴 High"}[x],
+                format_func=lambda x: {
+                    "low":    t("risk_low"),
+                    "medium": t("risk_medium"),
+                    "high":   t("risk_high"),
+                }[x],
             )
-            save_ok = st.form_submit_button("Save Settings", use_container_width=True)
+            save_ok = st.form_submit_button(t("save_settings"), use_container_width=True)
         if save_ok:
             res = update_investment_config(token, user_id,
                                            investment_amount=new_amt, risk_level=new_risk)
             if res.get("success"):
-                st.success("Settings saved.")
+                st.success(t("settings_saved"))
                 _load_profile.clear()
                 st.rerun()
             else:
                 st.error(f"Error: {res.get('error')}")
 
     if not positions:
-        st.info("No positions yet. Use the **Search & Add** tab to build your portfolio.")
+        st.info(t("no_positions"))
     else:
         usd_rate      = _usd_ils()
         stale_syms: list[str] = []
 
-        st.markdown(f"**{len(positions)} position{'s' if len(positions) != 1 else ''}**")
+        st.markdown(f"**{t('positions_count').format(n=len(positions))}**")
 
         for pos in positions:
             sym       = pos["symbol"]
@@ -376,26 +385,26 @@ with tab_portfolio:
                 st.markdown(
                     f"**{sym}** &nbsp;·&nbsp; "
                     f"Allocated: {fmt_ils(alloc_ils)} &nbsp;·&nbsp; "
-                    f"Current Value: {fmt_ils(cur_value)} &nbsp;·&nbsp; "
+                    f"{t('current_value')}: {fmt_ils(cur_value)} &nbsp;·&nbsp; "
                     f"P&L: <span style='color:{pnl_color}'>"
                     f"{fmt_ils(pnl_ils)} ({pnl_pct:+.1f}%)</span> &nbsp;·&nbsp; "
-                    f"Weight: {weight_pct:.1f}%",
+                    f"{t('weight')}: {weight_pct:.1f}%",
                     unsafe_allow_html=True,
                 )
             with del_col:
-                if st.button("🗑 Remove", key=f"del_{sym}"):
+                if st.button(t("remove"), key=f"del_{sym}"):
                     res = remove_portfolio_position(token, user_id, sym)
                     if res.get("success"):
                         _live_quote.clear()
                         st.rerun()
                     else:
-                        st.error(f"Remove failed: {res.get('error')}")
+                        st.error(t("remove_failed").format(error=res.get("error")))
             st.divider()
 
         if stale_syms:
-            st.caption(f"⚠ Live price unavailable for {', '.join(stale_syms)} — showing cost basis.")
+            st.caption(t("live_price_unavailable").format(tickers=", ".join(stale_syms)))
 
-        st.markdown(f"**Cash (unallocated):** {fmt_ils(remaining)} ({100 - pct_used:.1f}%)")
+        st.markdown(f"**{t('cash_unallocated')}:** {fmt_ils(remaining)} ({100 - pct_used:.1f}%)")
         st.progress(min(pct_used / 100, 1.0))
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -404,11 +413,11 @@ with tab_portfolio:
 
 with tab_analysis:
     if not positions:
-        st.info("Add positions in **Search & Add** to see your portfolio analysis.")
+        st.info(t("no_positions"))
     else:
         symbols = [p["symbol"] for p in positions]
 
-        @st.cache_data(ttl=120, show_spinner="Fetching analysis data…")
+        @st.cache_data(ttl=120, show_spinner=True)
         def _fetch_analysis(syms_key: str, _tok: str) -> dict:
             try:
                 return client.get_portfolio_analysis(syms_key.split(","))
@@ -461,12 +470,12 @@ with tab_analysis:
             e["weight_pct"] = (e["allocation_ils"] / total_alloc_val * 100) if total_alloc_val > 0 else 0
 
         # ── Panel A: Allocation Donut ─────────────────────────────────────────
-        st.subheader("💰 Allocation Breakdown")
+        st.subheader(t("allocation_breakdown"))
 
         labels = [e["symbol"] for e in enriched]
         values = [e["allocation_ils"] for e in enriched]
         if remaining > 0:
-            labels.append("Cash")
+            labels.append(t("cash_unallocated"))
             values.append(remaining)
 
         fig_donut = go.Figure(go.Pie(
@@ -484,7 +493,7 @@ with tab_analysis:
         st.plotly_chart(fig_donut, use_container_width=True)
 
         # ── Panel B: Risk Assessment ──────────────────────────────────────────
-        st.subheader("🌡️ Risk Assessment")
+        st.subheader(t("risk_assessment"))
 
         w_beta = None
         beta_weights = [(e["beta"], e["weight_pct"]) for e in enriched if e["beta"] is not None]
@@ -510,46 +519,40 @@ with tab_analysis:
             else:             port_risk_score = 10
 
         r1, r2, r3 = st.columns(3)
-        r1.metric("Weighted Beta",
+        r1.metric(t("weighted_beta"),
                   f"{w_beta:.2f}" if w_beta is not None else "—",
-                  help="Weighted average beta vs broad market")
-        r2.metric("Avg 30D Volatility",
+                  help=t("weighted_beta_help"))
+        r2.metric(t("avg_30d_vol"),
                   f"{w_vol:.2f}%" if w_vol is not None else "—",
-                  help="Weighted avg of individual 30-day daily std dev")
-        r3.metric("Portfolio Risk Score",
+                  help=t("avg_30d_vol_help"))
+        r3.metric(t("portfolio_risk_score"),
                   f"{port_risk_score}/10" if port_risk_score else "—")
 
         # Risk alignment
         if port_risk_score is not None:
             if risk_level == "low" and port_risk_score > 4:
-                st.error(
-                    f"⚠ **Risk mismatch**: Portfolio risk is **{port_risk_score}/10** "
-                    f"but your preference is **Low (≤4)**. Consider reducing volatile positions."
-                )
+                st.error(t("risk_mismatch_low").format(score=port_risk_score))
             elif risk_level == "high" and port_risk_score < 5:
-                st.warning(
-                    f"ℹ Portfolio risk is **{port_risk_score}/10** "
-                    f"but your preference is **High**. Consider adding growth or higher-beta assets."
-                )
+                st.warning(t("risk_mismatch_high").format(score=port_risk_score))
             else:
-                st.success(
-                    f"✅ Portfolio risk ({port_risk_score}/10) is aligned with your "
-                    f"**{risk_level.capitalize()}** preference."
-                )
+                st.success(t("risk_aligned").format(
+                    score=port_risk_score,
+                    level=risk_level.capitalize(),
+                ))
 
         # Per-position risk table
         risk_rows = [{
-            "Symbol":    e["symbol"],
-            "Weight %":  f"{e['weight_pct']:.1f}%",
-            "Beta":      f"{e['beta']:.2f}"           if e["beta"]           is not None else "—",
-            "30D Vol %": f"{e['volatility30d']:.2f}%"  if e.get("volatility30d", 0) > 0 else "—",
-            "P/E":       f"{e['pe']:.1f}"              if e.get("pe")         is not None else "—",
-            "P&L %":     fmt_pct(e["pnl_pct"]),
+            t("col_symbol"):   e["symbol"],
+            t("col_weight_pct"): f"{e['weight_pct']:.1f}%",
+            t("col_beta"):     f"{e['beta']:.2f}"           if e["beta"]           is not None else "—",
+            t("col_vol_30d"):  f"{e['volatility30d']:.2f}%" if e.get("volatility30d", 0) > 0 else "—",
+            t("col_pe"):       f"{e['pe']:.1f}"             if e.get("pe")         is not None else "—",
+            t("col_pnl_pct"):  fmt_pct(e["pnl_pct"]),
         } for e in enriched]
         st.dataframe(pd.DataFrame(risk_rows), use_container_width=True, hide_index=True)
 
         # ── Panel C: Sector Diversification ───────────────────────────────────
-        st.subheader("🏭 Sector Diversification")
+        st.subheader(t("sector_diversification"))
 
         sector_map: dict[str, float] = {}
         for e in enriched:
@@ -575,19 +578,19 @@ with tab_analysis:
 
         for sec, w in sector_map.items():
             if w > 40:
-                st.warning(f"⚠ **{sec}** makes up {w:.1f}% of your portfolio — consider diversifying.")
+                st.warning(t("sector_concentration_warning").format(sector=sec, weight=w))
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 4: AI SUGGESTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 with tab_ai:
-    st.subheader("🤖 AI Portfolio Suggestions")
+    st.subheader(t("ai_portfolio_suggestions"))
 
     if not positions:
-        st.info("Build your portfolio first, then come back for personalised AI suggestions.")
+        st.info(t("build_portfolio_first"))
     else:
-        if st.button("🔄 Refresh Suggestions", use_container_width=False):
+        if st.button(t("refresh_suggestions"), use_container_width=False):
             st.session_state.pop("ai_suggestions", None)
             st.session_state.pop("ai_suggestions_at", None)
 
@@ -641,7 +644,7 @@ with tab_ai:
                     "volatility30d":     m.get("volatility30d", 0),
                 })
 
-            with st.spinner("Generating personalised suggestions…"):
+            with st.spinner(t("generating_suggestions")):
                 try:
                     result = client.post_portfolio_suggestions(
                         positions  = pos_summaries,
@@ -651,14 +654,14 @@ with tab_ai:
                     st.session_state["ai_suggestions"]    = result.get("suggestions", "")
                     st.session_state["ai_suggestions_at"] = result.get("generatedAt", "")
                 except APIError as e:
-                    st.error(f"AI suggestions failed: {e.message}")
+                    st.error(t("ai_failed").format(error=e.message))
 
         suggestions_text = st.session_state.get("ai_suggestions", "")
         generated_at     = st.session_state.get("ai_suggestions_at", "")
 
         if suggestions_text:
             if generated_at:
-                st.caption(f"Generated {generated_at[:19].replace('T', ' ')} UTC")
+                st.caption(t("generated_at").format(time=generated_at[:19].replace("T", " ")))
             st.markdown(suggestions_text)
         else:
-            st.info("Click **Refresh Suggestions** to generate AI recommendations.")
+            st.info(t("click_refresh"))

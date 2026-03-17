@@ -85,23 +85,26 @@ def get_current_phase() -> tuple[str, str]:
 
 def render_phase_timer():
     """Render the market phase badge with a manual refresh button."""
+    from utils.i18n import t
+
     now_ist = datetime.now(IST)
     phase_label, alert_type = get_current_phase()
 
     time_str = now_ist.strftime("%H:%M:%S IST")
+    label_str = f"**{phase_label}** — {t('as_of')} {time_str}"
 
     col1, col2 = st.columns([4, 1])
     with col1:
         if alert_type == "success":
-            st.success(f"🟢 **{phase_label}** — as of {time_str}")
+            st.success(f"🟢 {label_str}")
         elif alert_type == "info":
-            st.info(f"🔵 **{phase_label}** — as of {time_str}")
+            st.info(f"🔵 {label_str}")
         elif alert_type == "warning":
-            st.warning(f"🟡 **{phase_label}** — as of {time_str}")
+            st.warning(f"🟡 {label_str}")
         elif alert_type == "error":
-            st.error(f"🔴 **{phase_label}** — as of {time_str}")
+            st.error(f"🔴 {label_str}")
         else:
-            st.info(f"⚫ **{phase_label}** — as of {time_str}")
+            st.info(f"⚫ {label_str}")
     with col2:
-        if st.button("↻ Refresh", key="phase_refresh"):
+        if st.button(t("refresh"), key="phase_refresh"):
             st.rerun()

@@ -1,6 +1,8 @@
 """
-Formatting helpers — currency, percentages, Hebrew labels.
+Formatting helpers — currency, percentages, language-aware labels.
 """
+
+import streamlit as st
 
 
 def fmt_ils(value: float, decimals: int = 2) -> str:
@@ -25,47 +27,57 @@ def pct_delta_color(value: float) -> str:
 
 
 def risk_label(score: int | float) -> str:
-    """English risk label for a 0–10 risk score."""
+    """Risk label for a 0–10 score — language-aware via t()."""
+    from utils.i18n import t
     s = float(score)
     if s <= 3:
-        return "Low"
+        return t("risk_low")
     elif s <= 6:
-        return "Medium"
+        return t("risk_medium")
+    return t("risk_high")
+
+
+# Keep for backwards compatibility — callers that explicitly need English
+def risk_label_en(score: int | float) -> str:
+    s = float(score)
+    if s <= 3:   return "Low"
+    elif s <= 6: return "Medium"
     return "High"
 
 
-def risk_label_he(score: int | float) -> str:
-    """Hebrew risk label for a 0–10 risk score."""
-    s = float(score)
-    if s <= 3:
-        return "נמוך"
-    elif s <= 6:
-        return "בינוני"
-    return "גבוה"
-
-
 def arb_direction_label(direction: str) -> str:
-    """Human-readable arbitrage direction label."""
+    """Human-readable arbitrage direction label — language-aware."""
+    from utils.i18n import t
     mapping = {
-        "TASE_PREMIUM": "TASE Premium 📈",
-        "FOREIGN_PREMIUM": "Foreign Premium 📉",
-        "PARITY": "Parity ≈",
-    }
-    return mapping.get(direction, direction)
-
-
-def arb_direction_label_he(direction: str) -> str:
-    mapping = {
-        "TASE_PREMIUM": "פרמיה בבורסה 📈",
-        "FOREIGN_PREMIUM": "פרמיה בחו\"ל 📉",
-        "PARITY": "שוויון ≈",
+        "TASE_PREMIUM":    t("tase_premium_label"),
+        "FOREIGN_PREMIUM": t("foreign_premium_label"),
+        "PARITY":          t("parity_label"),
     }
     return mapping.get(direction, direction)
 
 
 def mode_label(mode: str | None) -> str:
+    from utils.i18n import t
     if mode == "beginner":
-        return "🌱 Simple / פשוט"
+        return t("mode_beginner")
     elif mode == "pro":
-        return "⚡ Pro / מקצועי"
-    return "Unknown"
+        return t("mode_pro")
+    return mode or ""
+
+
+# ── Kept for any legacy callers ───────────────────────────────────────────────
+
+def risk_label_he(score: int | float) -> str:
+    s = float(score)
+    if s <= 3:   return "נמוך"
+    elif s <= 6: return "בינוני"
+    return "גבוה"
+
+
+def arb_direction_label_he(direction: str) -> str:
+    mapping = {
+        "TASE_PREMIUM":    'פרמיה בבורסה 📈',
+        "FOREIGN_PREMIUM": 'פרמיה בחו"ל 📉',
+        "PARITY":          "שוויון ≈",
+    }
+    return mapping.get(direction, direction)

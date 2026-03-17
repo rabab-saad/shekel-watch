@@ -9,23 +9,28 @@ st.set_page_config(page_title="Watchlist — Shekel-Watch", page_icon="👁️",
 
 from components.auth import require_auth, render_sidebar_user
 from components.mode_toggle import render_mode_toggle
+from components.lang_selector import render_lang_selector
 from services.api_client import APIClient, APIError
 from services.supabase_client import get_watchlist, add_to_watchlist, remove_from_watchlist
-from services.formatters import fmt_ils, fmt_pct, risk_label, risk_label_he
+from services.formatters import fmt_ils, fmt_pct, risk_label
+from utils.i18n import t, inject_dir
 
 if not require_auth():
     st.stop()
 
+inject_dir()
+
 with st.sidebar:
-    st.markdown("## 📊 Shekel-Watch")
+    st.markdown(t("sidebar_title"))
     st.divider()
+    render_lang_selector()
     render_mode_toggle()
     st.divider()
     render_sidebar_user()
 
 # ─────────────────────────────────────────────────────────────────────────────
-st.title("👁️ Watchlist")
-st.caption("Track your favourite stocks. Add TASE tickers (e.g. TEVA.TA) or NYSE tickers.")
+st.title(t("watchlist_title"))
+st.caption(t("watchlist_caption"))
 
 token = st.session_state["access_token"]
 user_id = st.session_state["user_id"]
@@ -37,36 +42,36 @@ with st.form("add_ticker_form"):
     with col_input:
         new_ticker = st.text_input(
             "Ticker Symbol",
-            placeholder="e.g. TEVA.TA, CHKP, MSFT",
+            placeholder=t("ticker_placeholder"),
             label_visibility="collapsed",
         )
     with col_market:
-        market_options = ["Auto-detect", "TASE", "NYSE", "NASDAQ"]
-        market_select = st.selectbox("Market", market_options, label_visibility="collapsed")
+        market_options = [t("auto_detect"), "TASE", "NYSE", "NASDAQ"]
+        market_select = st.selectbox(t("market"), market_options, label_visibility="collapsed")
     with col_btn:
-        add_submitted = st.form_submit_button("הוסף / Add", use_container_width=True)
+        add_submitted = st.form_submit_button(t("add"), use_container_width=True)
 
 if add_submitted:
     ticker_clean = new_ticker.strip().upper()
     if not ticker_clean:
-        st.error("Please enter a ticker symbol.")
+        st.error(t("please_enter_ticker"))
     else:
         # Auto-detect market
-        if market_select == "Auto-detect":
+        if market_select == t("auto_detect"):
             market = "TASE" if ticker_clean.endswith(".TA") else "NYSE"
         else:
             market = market_select
 
         result = add_to_watchlist(token, user_id, ticker_clean, market)
         if result["success"]:
-            st.success(f"Added {ticker_clean} ({market}) to your watchlist.")
+            st.success(t("added_ticker").format(ticker=ticker_clean, market=market))
             st.rerun()
         else:
             err = result.get("error", "")
             if "duplicate" in err.lower() or "unique" in err.lower():
-                st.warning(f"{ticker_clean} is already in your watchlist.")
+                st.warning(t("already_in_watchlist").format(ticker=ticker_clean))
             else:
-                st.error(f"Failed to add ticker: {err}")
+                st.error(t("failed_to_add").format(error=err))
 
 st.divider()
 
@@ -74,7 +79,7 @@ st.divider()
 watchlist = get_watchlist(token, user_id)
 
 if not watchlist:
-    st.info("Your watchlist is empty. Add a ticker above to start tracking.")
+    st.info(t("watchlist_empty"))
     st.stop()
 
 tickers = [item["ticker"] for item in watchlist]
@@ -85,10 +90,10 @@ try:
     for q in quotes:
         price_map[q["ticker"]] = q
 except APIError as e:
-    st.warning(f"Could not load live prices: {e.message}")
+    st.warning(t("could_not_load_prices").format(error=e.message))
 
 # ── Watchlist table ───────────────────────────────────────────────────────────
-st.subheader(f"Your Watchlist ({len(watchlist)} tickers)")
+st.subheader(t("your_watchlist").format(n=len(watchlist)))
 
 for item in watchlist:
     ticker = item.get("ticker", "")
@@ -107,33 +112,33 @@ for item in watchlist:
             st.caption(name[:40] if name else "")
 
         with col2:
-            st.caption(f"Market: {market}")
+            st.caption(f"{t('market')}: {market}")
 
         with col3:
             if price is not None:
                 st.metric(
-                    "Price",
+                    t("price"),
                     fmt_ils(price),
                     delta=fmt_pct(change_pct) if change_pct is not None else None,
                     delta_color="normal" if (change_pct or 0) >= 0 else "inverse",
                 )
             else:
-                st.caption("Price N/A")
+                st.caption(t("price_na"))
 
         with col4:
-            risk_en = risk_label(risk)
+            risk_lbl = risk_label(risk)
             if risk <= 3:
-                st.success(f"Risk: {risk}/10\n{risk_en}")
+                st.success(f"{t('risk')}: {risk}/10\n{risk_lbl}")
             elif risk <= 6:
-                st.warning(f"Risk: {risk}/10\n{risk_en}")
+                st.warning(f"{t('risk')}: {risk}/10\n{risk_lbl}")
             else:
-                st.error(f"Risk: {risk}/10\n{risk_en}")
+                st.error(f"{t('risk')}: {risk}/10\n{risk_lbl}")
 
         with col5:
-            if st.button("🗑️ Remove", key=f"remove_{ticker}"):
+            if st.button(t("remove_watchlist_btn"), key=f"remove_{ticker}"):
                 result = remove_from_watchlist(token, user_id, ticker)
                 if result["success"]:
-                    st.success(f"Removed {ticker}.")
+                    st.success(t("removed_ticker").format(ticker=ticker))
                     st.rerun()
                 else:
-                    st.error(f"Failed to remove: {result.get('error', '')}")
+                    st.error(t("failed_to_remove").format(error=result.get("error", "")))

@@ -50,8 +50,10 @@ def render_exchange_banner():
         data = st.session_state.get("_rates_last_good")
         is_stale = True
 
+    from utils.i18n import t
+
     if not data:
-        st.warning("Exchange rates unavailable — will retry in 60 s.")
+        st.warning(t("live_exchange_rates") + " — will retry in 60 s.")
         return
 
     # ── Build lookup ──────────────────────────────────────────────────────────
@@ -62,21 +64,21 @@ def render_exchange_banner():
 
     # ── Header ────────────────────────────────────────────────────────────────
     stale_html = (
-        " &nbsp;<span style='color:#f59e0b;font-size:0.75rem;'>⚠ stale</span>"
+        f" &nbsp;<span style='color:#f59e0b;font-size:0.75rem;'>⚠ {t('stale')}</span>"
         if is_stale
         else ""
     )
     fetched_at = data.get("fetchedAt", "")
     time_str = fetched_at[11:19] if len(fetched_at) >= 19 else ""
     time_html = (
-        f"<span style='color:#64748b;font-size:0.7rem;margin-left:8px;'>updated {time_str} UTC</span>"
+        f"<span style='color:#64748b;font-size:0.7rem;margin-left:8px;'>{t('updated_at').format(time=time_str)}</span>"
         if time_str and not is_stale
         else ""
     )
 
     st.markdown(
         f"<p style='margin:0 0 6px 0;font-size:0.8rem;color:#94a3b8;'>"
-        f"🌍 <b>Live Exchange Rates</b>{stale_html}{time_html}</p>",
+        f"<b>{t('live_exchange_rates')}</b>{stale_html}{time_html}</p>",
         unsafe_allow_html=True,
     )
 

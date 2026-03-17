@@ -14,7 +14,9 @@ st.set_page_config(
 
 from components.auth import require_auth, render_sidebar_user
 from components.mode_toggle import render_mode_toggle
+from components.lang_selector import render_lang_selector
 from onboarding import render_onboarding
+from utils.i18n import t, inject_dir
 
 
 def main():
@@ -22,10 +24,13 @@ def main():
     if not require_auth():
         st.stop()
 
+    inject_dir()
+
     # ── Sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
-        st.markdown("## 📊 Shekel-Watch")
+        st.markdown(t("sidebar_title"))
         st.divider()
+        render_lang_selector()
         render_mode_toggle()
         st.divider()
         render_sidebar_user()
@@ -37,22 +42,19 @@ def main():
         st.stop()
 
     # ── Home screen (redirect hint) ───────────────────────────────────────────
-    st.title("📊 Shekel-Watch")
-    st.markdown(
-        "Israeli market intelligence platform — USD/ILS rates, TASE stocks, "
-        "arbitrage detection, and AI-powered summaries."
-    )
-    st.info("👈 Use the sidebar to navigate to Dashboard, Paper Trading, Arbitrage Scanner, and more.")
+    st.title(t("home_title"))
+    st.markdown(t("home_desc"))
+    st.info(t("home_hint"))
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("📈 Dashboard", use_container_width=True):
+        if st.button(t("btn_dashboard"), use_container_width=True):
             st.switch_page("pages/1_Dashboard.py")
     with col2:
-        if st.button("💹 Paper Trading", use_container_width=True):
+        if st.button(t("btn_paper_trading"), use_container_width=True):
             st.switch_page("pages/2_Paper_Trading.py")
     with col3:
-        if st.button("🔍 Arbitrage Scanner", use_container_width=True):
+        if st.button(t("btn_arbitrage"), use_container_width=True):
             st.switch_page("pages/3_Arbitrage_Scanner.py")
 
 
