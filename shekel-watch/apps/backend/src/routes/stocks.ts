@@ -1,8 +1,72 @@
 import { Router, Request, Response } from 'express';
+import yahooFinance from 'yahoo-finance2';
 import { getBatchQuotes, getQuote, getHistory } from '../services/yahooFinanceService';
 import { logger } from '../utils/logger';
 
 const router = Router();
+
+// GET /api/stocks/search?q=apple
+router.get('/search', async (req: Request, res: Response) => {
+  const q = String(req.query.q ?? '').trim();
+  if (!q) { res.status(400).json({ error: 'q is required' }); return; }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await (yahooFinance as any).search(q, { newsCount: 0, quotesCount: 10 });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const quotes = ((result.quotes as any[]) || [])
+      .filter((r: { symbol?: string; quoteType?: string }) => r.symbol && r.quoteType !== 'OPTION')
+      .slice(0, 10)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((r: any) => ({
+        symbol:   r.symbol   as string,
+        name:     (r.longname || r.shortname || r.symbol) as string,
+        typeDisp: (r.typeDisp || r.quoteType || 'EQUITY')  as string,
+        exchange: (r.exchange || '') as string,
+      }));
+    res.json({ quotes });
+  } catch (err) {
+    logger.error('Stock search failed', err);
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+// GET /api/stocks/:ticker/detail — rich metadata (sector, beta, PE, 52-wk, etc.)
+router.get('/:ticker/detail', async (req: Request, res: Response) => {
+  const ticker = req.params.ticker;
+  try {
+    const [quoteRes, summaryRes] = await Promise.allSettled([
+      getQuote(ticker),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (yahooFinance as any).quoteSummary(ticker, {
+        modules: ['price', 'summaryDetail', 'assetProfile', 'defaultKeyStatistics'],
+      }),
+    ]);
+
+    const q = quoteRes.status   === 'fulfilled' ? quoteRes.value   : null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const s = summaryRes.status === 'fulfilled' ? (summaryRes.value as any) : null;
+
+    res.json({
+      symbol:        ticker,
+      name:          q?.name        ?? ticker,
+      price:         q?.price       ?? 0,
+      changePercent: q?.changePercent ?? 0,
+      currency:      q?.currency    ?? 'USD',
+      marketState:   q?.marketState ?? 'CLOSED',
+      marketCap:     s?.price?.marketCap             ?? s?.summaryDetail?.marketCap ?? null,
+      pe:            s?.summaryDetail?.trailingPE    ?? null,
+      volume:        s?.price?.regularMarketVolume   ?? s?.summaryDetail?.volume    ?? null,
+      week52High:    s?.summaryDetail?.fiftyTwoWeekHigh ?? null,
+      week52Low:     s?.summaryDetail?.fiftyTwoWeekLow  ?? null,
+      sector:        s?.assetProfile?.sector         ?? null,
+      industry:      s?.assetProfile?.industry       ?? null,
+      beta:          s?.summaryDetail?.beta          ?? s?.defaultKeyStatistics?.beta ?? null,
+    });
+  } catch (err) {
+    logger.error(`Detail fetch failed for ${ticker}`, err);
+    res.status(500).json({ error: `Failed to fetch detail for ${ticker}` });
+  }
+});
 
 // GET /api/stocks?tickers=LUMI.TA,TEVA.TA
 router.get('/', async (req: Request, res: Response) => {

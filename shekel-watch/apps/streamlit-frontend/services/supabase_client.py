@@ -208,3 +208,65 @@ def get_virtual_portfolio(access_token: str, user_id: str) -> list:
         return resp.data or []
     except Exception:
         return []
+
+
+# ── Portfolio Builder ──────────────────────────────────────────────────────────
+# Uses virtual_portfolio table where:
+#   quantity      = allocation amount in ILS
+#   avg_buy_price = price per unit in ILS at time of allocation (for P&L)
+#   currency      = native currency of the asset (USD, ILS, EUR, etc.)
+
+def upsert_portfolio_position(
+    access_token: str,
+    user_id: str,
+    symbol: str,
+    allocation_ils: float,
+    price_ils: float,
+    currency: str = "USD",
+) -> dict:
+    """
+    Add or replace a portfolio position.
+    allocation_ils: total NIS amount allocated.
+    price_ils:      price per unit converted to ILS at time of allocation.
+    """
+    try:
+        client = get_authed_client(access_token)
+        client.table("virtual_portfolio").upsert({
+            "user_id":       user_id,
+            "symbol":        symbol.upper().strip(),
+            "quantity":      allocation_ils,
+            "avg_buy_price": price_ils,
+            "currency":      currency,
+        }, on_conflict="user_id,symbol").execute()
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def remove_portfolio_position(access_token: str, user_id: str, symbol: str) -> dict:
+    try:
+        client = get_authed_client(access_token)
+        client.table("virtual_portfolio").delete() \
+            .eq("user_id", user_id) \
+            .eq("symbol", symbol.upper().strip()) \
+            .execute()
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def update_investment_config(
+    access_token: str,
+    user_id: str,
+    investment_amount: float | None = None,
+    risk_level: str | None = None,
+) -> dict:
+    """Persist investment_amount and/or risk_level in the user's profile."""
+    updates: dict = {}
+    if investment_amount is not None:
+        updates["investment_amount"] = investment_amount
+    if risk_level is not None:
+        updates["risk_level"] = risk_level
+    if not updates:
+        return {"success": True}
+    return update_profile(access_token, user_id, updates)

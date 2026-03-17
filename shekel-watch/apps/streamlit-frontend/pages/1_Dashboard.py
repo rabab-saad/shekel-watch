@@ -11,6 +11,7 @@ from components.mode_toggle import render_mode_toggle
 from components.tase_phase_timer import render_phase_timer
 from components.term_tooltip import render_term
 from components.charts import render_area_chart, render_candlestick_chart
+from components.exchange_banner import render_exchange_banner
 from services.api_client import APIClient, APIError
 from services.supabase_client import get_watchlist
 from services.formatters import fmt_ils, fmt_pct, risk_label, risk_label_he
@@ -27,6 +28,7 @@ with st.sidebar:
 
 # ─────────────────────────────────────────────────────────────────────────────
 st.title("📈 Dashboard")
+render_exchange_banner()
 render_phase_timer()
 st.divider()
 

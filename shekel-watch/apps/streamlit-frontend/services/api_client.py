@@ -91,3 +91,29 @@ class APIClient:
     def post_explain(self, term: str, language: str = "en") -> dict:
         """POST /api/explain → { term, explanation, language }"""
         return self.post("/api/explain", {"term": term, "language": language})
+
+    def search_stocks(self, query: str) -> dict:
+        """GET /api/stocks/search?q=... → { quotes: [{symbol, name, typeDisp, exchange}] }"""
+        return self.get("/api/stocks/search", params={"q": query})
+
+    def get_stock_detail(self, ticker: str) -> dict:
+        """GET /api/stocks/:ticker/detail → { symbol, name, price, changePercent, currency,
+        marketCap, pe, volume, week52High, week52Low, sector, industry, beta }"""
+        return self.get(f"/api/stocks/{ticker}/detail")
+
+    def get_portfolio_analysis(self, symbols: list[str]) -> dict:
+        """GET /api/portfolio/analysis?symbols=... → { symbols: {sym: meta}, usdIls }"""
+        return self.get("/api/portfolio/analysis", params={"symbols": ",".join(symbols)})
+
+    def post_portfolio_suggestions(
+        self,
+        positions: list[dict],
+        risk_level: str = "medium",
+        language: str = "en",
+    ) -> dict:
+        """POST /api/portfolio/suggestions → { suggestions, generatedAt }"""
+        return self.post("/api/portfolio/suggestions", {
+            "positions": positions,
+            "risk_level": risk_level,
+            "language": language,
+        })
