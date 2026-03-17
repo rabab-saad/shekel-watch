@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import axios from 'axios';
 import yahooFinance from 'yahoo-finance2';
 import { getBatchQuotes, getQuote, getHistory } from '../services/yahooFinanceService';
 import { logger } from '../utils/logger';
@@ -6,31 +7,36 @@ import { logger } from '../utils/logger';
 const router = Router();
 
 // ── Yahoo Finance crumb cache ─────────────────────────────────────────────────
-// Yahoo Finance's v1 search API requires a session cookie + crumb since ~2024.
-// We fetch them once and cache for 25 minutes.
+// Yahoo's v1 search API requires a session cookie + crumb since ~2024.
+// We use axios (already a dependency) which handles redirects and SSL
+// more reliably than the global fetch on Railway's network.
 const _YH_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
-let _yhCrumb   = '';
-let _yhCookie  = '';
-let _yhExpiry  = 0;
+let _yhCrumb  = '';
+let _yhCookie = '';
+let _yhExpiry = 0;
 
 async function ensureYahooCrumb(): Promise<void> {
   if (_yhCrumb && Date.now() < _yhExpiry) return;
 
-  // 1. Visit Yahoo Finance to get a session cookie
-  const homeRes = await fetch('https://finance.yahoo.com/', {
+  // 1. Visit Yahoo Finance to obtain a session cookie
+  const homeRes = await axios.get('https://finance.yahoo.com/', {
     headers: { 'User-Agent': _YH_UA, 'Accept': 'text/html' },
-    redirect: 'follow',
+    maxRedirects: 5,
+    timeout: 10_000,
   });
-  const rawCookie = homeRes.headers.get('set-cookie') ?? '';
-  // Keep only the key=value part of each cookie directive
-  _yhCookie = rawCookie.split(',').map(c => c.split(';')[0].trim()).join('; ');
+  const rawCookies: string[] = Array.isArray(homeRes.headers['set-cookie'])
+    ? homeRes.headers['set-cookie']
+    : [];
+  _yhCookie = rawCookies.map((c: string) => c.split(';')[0].trim()).join('; ');
 
-  // 2. Exchange the cookie for a crumb
-  const crumbRes = await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb', {
+  // 2. Exchange cookie for a crumb
+  const crumbRes = await axios.get('https://query1.finance.yahoo.com/v1/test/getcrumb', {
     headers: { 'User-Agent': _YH_UA, 'Cookie': _yhCookie },
+    timeout: 10_000,
+    responseType: 'text',
   });
-  _yhCrumb  = (await crumbRes.text()).trim();
-  _yhExpiry = Date.now() + 25 * 60 * 1000; // 25 minutes
+  _yhCrumb  = String(crumbRes.data).trim();
+  _yhExpiry = Date.now() + 25 * 60 * 1000; // cache 25 minutes
 }
 
 // GET /api/stocks/search?q=apple
@@ -40,13 +46,15 @@ router.get('/search', async (req: Request, res: Response) => {
   try {
     await ensureYahooCrumb();
 
-    const url =
-      `https://query1.finance.yahoo.com/v1/finance/search` +
-      `?q=${encodeURIComponent(q)}&quotesCount=10&newsCount=0` +
-      `&enableFuzzyQuery=false&quotesQueryId=tss_match` +
-      `&crumb=${encodeURIComponent(_yhCrumb)}`;
-
-    const res2 = await fetch(url, {
+    const searchRes = await axios.get('https://query1.finance.yahoo.com/v1/finance/search', {
+      params: {
+        q,
+        quotesCount: 10,
+        newsCount: 0,
+        enableFuzzyQuery: false,
+        quotesQueryId: 'tss_match',
+        crumb: _yhCrumb,
+      },
       headers: {
         'User-Agent':      _YH_UA,
         'Cookie':          _yhCookie,
@@ -54,14 +62,11 @@ router.get('/search', async (req: Request, res: Response) => {
         'Accept-Language': 'en-US,en;q=0.9',
         'Referer':         'https://finance.yahoo.com/',
       },
+      timeout: 12_000,
     });
 
-    if (!res2.ok) throw new Error(`Yahoo returned HTTP ${res2.status}`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = await res2.json() as any;
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const quotes = ((data?.quotes ?? []) as any[])
+    const quotes = ((searchRes.data?.quotes ?? []) as any[])
       .filter((r: { symbol?: string; quoteType?: string }) => r.symbol && r.quoteType !== 'OPTION')
       .slice(0, 10)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -74,7 +79,7 @@ router.get('/search', async (req: Request, res: Response) => {
 
     res.json({ quotes });
   } catch (err: unknown) {
-    _yhCrumb  = '';   // force refresh on next call
+    _yhCrumb  = '';   // invalidate cache so next call retries
     _yhExpiry = 0;
     const msg = err instanceof Error ? err.message : String(err);
     logger.error('Stock search failed', { query: q, error: msg });
