@@ -1,9 +1,8 @@
 """
-Watchlist — add/remove tickers, enriched with live prices from the backend.
+Watchlist — search for instruments, add/remove tickers, enriched with live prices.
 """
 
 import streamlit as st
-import pandas as pd
 
 st.set_page_config(page_title="Watchlist — Shekel-Watch", page_icon="👁️", layout="wide")
 
@@ -36,42 +35,53 @@ token = st.session_state["access_token"]
 user_id = st.session_state["user_id"]
 client = APIClient()
 
-# ── Add ticker ────────────────────────────────────────────────────────────────
-with st.form("add_ticker_form"):
-    col_input, col_market, col_btn = st.columns([3, 1, 1])
-    with col_input:
-        new_ticker = st.text_input(
-            "Ticker Symbol",
-            placeholder=t("ticker_placeholder"),
-            label_visibility="collapsed",
-        )
-    with col_market:
-        market_options = [t("auto_detect"), "TASE", "NYSE", "NASDAQ"]
-        market_select = st.selectbox(t("market"), market_options, label_visibility="collapsed")
-    with col_btn:
-        add_submitted = st.form_submit_button(t("add"), use_container_width=True)
+# ── Search & Add ──────────────────────────────────────────────────────────────
+st.subheader(t("search_instruments"))
+st.caption(t("search_caption"))
 
-if add_submitted:
-    ticker_clean = new_ticker.strip().upper()
-    if not ticker_clean:
-        st.error(t("please_enter_ticker"))
+col_q, col_btn = st.columns([4, 1])
+with col_q:
+    query = st.text_input(
+        "Search",
+        placeholder=t("search_placeholder"),
+        label_visibility="collapsed",
+        key="wl_search_query",
+    )
+with col_btn:
+    do_search = st.button(t("search_btn"), use_container_width=True, key="wl_search_btn")
+
+if do_search and query:
+    with st.spinner(t("searching")):
+        try:
+            result = client.search_stocks(query)
+            hits = result.get("quotes", [])
+        except APIError as e:
+            hits = []
+            st.error(t("search_failed_msg").format(error=e.message))
+
+    if not hits:
+        st.info(t("no_results"))
     else:
-        # Auto-detect market
-        if market_select == t("auto_detect"):
-            market = "TASE" if ticker_clean.endswith(".TA") else "NYSE"
-        else:
-            market = market_select
-
-        result = add_to_watchlist(token, user_id, ticker_clean, market)
-        if result["success"]:
-            st.success(t("added_ticker").format(ticker=ticker_clean, market=market))
-            st.rerun()
-        else:
-            err = result.get("error", "")
-            if "duplicate" in err.lower() or "unique" in err.lower():
-                st.warning(t("already_in_watchlist").format(ticker=ticker_clean))
-            else:
-                st.error(t("failed_to_add").format(error=err))
+        st.markdown(t("results_found").format(n=len(hits)))
+        for i, h in enumerate(hits):
+            ca, cb, cc, cd, ce = st.columns([1.5, 3.5, 1.2, 1.2, 1])
+            ca.markdown(f"**{h.get('symbol', '')}**")
+            cb.write(h.get("name", ""))
+            cc.write(h.get("typeDisp", ""))
+            cd.write(h.get("exchange", ""))
+            if ce.button(t("add"), key=f"wl_add_{h['symbol']}_{i}"):
+                sym = h["symbol"]
+                market = "TASE" if sym.endswith(".TA") else "NYSE"
+                res = add_to_watchlist(token, user_id, sym, market)
+                if res["success"]:
+                    st.success(t("added_ticker").format(ticker=sym, market=market))
+                    st.rerun()
+                else:
+                    err = res.get("error", "")
+                    if "duplicate" in err.lower() or "unique" in err.lower():
+                        st.warning(t("already_in_watchlist").format(ticker=sym))
+                    else:
+                        st.error(t("failed_to_add").format(error=err))
 
 st.divider()
 
