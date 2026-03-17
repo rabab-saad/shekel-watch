@@ -15,7 +15,7 @@ router.get('/search', async (req: Request, res: Response) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await (yahooFinance as any).search(
       q,
-      { quotesCount: 10, newsArticlesCount: 0 },
+      { quotesCount: 10, newsCount: 0 },
       { validateResult: false },
     );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
