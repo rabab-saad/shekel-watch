@@ -40,10 +40,12 @@ client  = APIClient()
 
 # ── Live-price cache (30-second TTL slot) ─────────────────────────────────────
 @st.cache_data(ttl=30)
-def _fetch_watchlist_prices(_slot: int, _tickers: tuple) -> tuple[dict, str]:
-    _client = APIClient()
+def _fetch_watchlist_prices(slot: int, tickers: tuple) -> tuple[dict, str]:
+    # APIClient(token=None): /api/stocks is a public endpoint, no auth needed.
+    # Avoids touching st.session_state inside a cached function.
+    _client = APIClient(token=None)
     try:
-        quotes = _client.get_stocks(list(_tickers))
+        quotes = _client.get_stocks(list(tickers))
         pm = {q["ticker"]: q for q in quotes}
     except Exception:
         pm = {}
