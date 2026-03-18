@@ -136,7 +136,7 @@ streamlit run app.py
 | `GREENAPI_INSTANCE_ID` | https://green-api.com → My Instances |
 | `GREENAPI_TOKEN` | https://green-api.com → My Instances → API Token |
 | `GREENAPI_WEBHOOK_TOKEN` | Any secret string you choose (validates incoming webhooks) |
-| `FRONTEND_URL` | Your streamlit frontend URL, no trailing slash (e.g. `https://shekel-watch.vercel.app`) |
+| `FRONTEND_URL` | Your streamlit frontend URL, no trailing slash (e.g. `apps/streamlit-frontend/.env`)|
 
 ### Streamlit Frontend (`apps/streamlit-frontend/.env`)
 
