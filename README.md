@@ -6,7 +6,7 @@ Israeli market dashboard and AI-powered trading assistant. Tracks USD/ILS exchan
 
 | Layer | Technology |
 |---|---|
-| **Frontend** | Streamlit 1.40 (Python) — deployed on **Vercel** |
+| **Frontend** | Streamlit 1.40 (Python) — deployed on **streamlit** |
 | **Backend** | Node.js + Express (TypeScript) — deployed on **Railway** |
 | **AI Microservice** | FastAPI + CrewAI multi-agent framework |
 | **Database / Auth** | Supabase (PostgreSQL + Row-Level Security + Auth) |
