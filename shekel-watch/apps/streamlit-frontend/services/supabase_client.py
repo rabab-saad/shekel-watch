@@ -175,7 +175,16 @@ def add_to_watchlist(
             row["name"] = name
         if asset_type:
             row["asset_type"] = asset_type
-        client.table("watchlist").insert(row).execute()
+        try:
+            client.table("watchlist").insert(row).execute()
+        except Exception as e:
+            # Migration 010 not yet applied — fall back to base columns
+            if "asset_type" in str(e) or ("name" in str(e) and "schema" in str(e).lower()):
+                row.pop("name", None)
+                row.pop("asset_type", None)
+                client.table("watchlist").insert(row).execute()
+            else:
+                raise
         return {"success": True}
     except Exception as e:
         return {"success": False, "error": str(e)}
