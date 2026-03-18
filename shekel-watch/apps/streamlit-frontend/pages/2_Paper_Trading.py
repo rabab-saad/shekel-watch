@@ -628,8 +628,10 @@ with tab_trade:
         if is_stale:
             p1.caption(t("trade_stale_price"))
         p2.metric(t("trade_daily_change_label"), fmt_pct(change_pct) if not is_stale else "—")
-        p3.metric("High", f"{tq.get('regularMarketDayHigh') or '—'}")
-        p4.metric("Low",  f"{tq.get('regularMarketDayLow')  or '—'}")
+        p3.metric("High", fmt_ils(tq.get("dayHigh")) if tq.get("dayHigh") else "—")
+        p4.metric("Low",  fmt_ils(tq.get("dayLow"))  if tq.get("dayLow")  else "—")
+
+        st.caption(t("trade_paper_always_open"))
 
         # ── Sparkline (1 week history) ────────────────────────────────────────
         try:
@@ -769,8 +771,13 @@ with tab_trade:
             errors = []
             if trade_units <= 0:
                 errors.append(t("trade_units_required"))
+            # Market orders: try session-state cache one more time before blocking
             if trade_order_type == "market" and trade_price_ils <= 0:
-                errors.append(t("trade_price_required").format(order_type=t("trade_market")))
+                _cached_p = float(st.session_state.get(f"tp_{trade_ticker}", 0))
+                if _cached_p > 0:
+                    trade_price_ils = _cached_p
+                else:
+                    errors.append(t("trade_price_fetch_failed").format(error="no price data — try refreshing"))
             if trade_order_type in ("limit", "stop_limit") and not (limit_price_val and limit_price_val > 0):
                 errors.append(t("trade_price_required").format(order_type=t(f"trade_{trade_order_type}")))
             if trade_order_type in ("stop", "stop_limit") and not (stop_price_val and stop_price_val > 0):
@@ -870,10 +877,11 @@ with tab_trade:
                             )
                             if result.get("success"):
                                 st.success(t("trade_order_placed").format(
-                                    action=t(f"trade_{preview['action']}"),
-                                    units=f"{preview['units']:.4f}",
-                                    symbol=preview["symbol"],
-                                    total=fmt_ils(preview["total_ils"]),
+                                    action  = t(f"trade_{preview['action']}"),
+                                    units   = f"{preview['units']:.4f}",
+                                    symbol  = preview["symbol"],
+                                    price   = preview["price_ils"],
+                                    balance = result.get("newBalance", 0),
                                 ))
                                 st.session_state.pop("trade_preview", None)
                                 _live_quote.clear()
