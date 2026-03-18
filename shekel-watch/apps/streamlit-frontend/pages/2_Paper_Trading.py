@@ -815,7 +815,7 @@ with tab_trade:
         preview = st.session_state.get("trade_preview")
         if preview and preview.get("symbol") == trade_ticker:
             st.divider()
-            st.subheader(t("trade_order_summary"))
+            st.markdown(t("trade_order_summary"))
 
             remaining_after = (
                 trade_cash - preview["total_ils"]
@@ -900,9 +900,10 @@ with tab_trade:
                             )
                             if result.get("success"):
                                 st.success(t("trade_pending_placed").format(
-                                    type    = t(f"trade_{_ot}"),
-                                    symbol  = preview["symbol"],
-                                    trigger = f"{_trig:.2f}",
+                                    order_type = t(f"trade_{_ot}"),
+                                    units      = f"{preview['units']:.4f}",
+                                    symbol     = preview["symbol"],
+                                    trigger    = _trig,
                                 ))
                                 st.session_state.pop("trade_preview", None)
                                 st.rerun()
