@@ -17,7 +17,7 @@ def _parse_history(bars: list) -> pd.DataFrame:
         return pd.DataFrame()
     df = pd.DataFrame(bars)
     # Handle both 'date' and 'timestamp' column names
-    for col in ("date", "timestamp", "t"):
+    for col in ("date", "time", "timestamp", "t"):
         if col in df.columns:
             df["date"] = pd.to_datetime(df[col])
             break
