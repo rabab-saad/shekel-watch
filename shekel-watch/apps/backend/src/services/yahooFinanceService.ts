@@ -11,6 +11,8 @@ export interface QuoteResult {
   changePercent: number;
   currency: string;
   marketState: string;
+  dayHigh?: number;
+  dayLow?: number;
 }
 
 // Suppress noisy validation warnings
@@ -75,6 +77,10 @@ export async function getQuote(ticker: string): Promise<QuoteResult> {
       changePercent: quote.regularMarketChangePercent ?? 0,
       currency:      quote.currency ?? 'USD',
       marketState:   quote.marketState ?? 'CLOSED',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      dayHigh:       (quote as any).regularMarketDayHigh ?? undefined,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      dayLow:        (quote as any).regularMarketDayLow  ?? undefined,
     };
   } catch {
     // Fallback: Twelve Data (handles Yahoo rate-limits)

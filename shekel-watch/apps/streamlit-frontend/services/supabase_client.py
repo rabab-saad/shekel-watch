@@ -156,14 +156,26 @@ def get_watchlist(access_token: str, user_id: str) -> list:
         return []
 
 
-def add_to_watchlist(access_token: str, user_id: str, ticker: str, market: str = "TASE") -> dict:
+def add_to_watchlist(
+    access_token: str,
+    user_id: str,
+    ticker: str,
+    market: str = "TASE",
+    name: str = "",
+    asset_type: str = "",
+) -> dict:
     try:
         client = get_authed_client(access_token)
-        client.table("watchlist").insert({
+        row: dict = {
             "user_id": user_id,
             "ticker": ticker.upper().strip(),
             "market": market,
-        }).execute()
+        }
+        if name:
+            row["name"] = name
+        if asset_type:
+            row["asset_type"] = asset_type
+        client.table("watchlist").insert(row).execute()
         return {"success": True}
     except Exception as e:
         return {"success": False, "error": str(e)}
