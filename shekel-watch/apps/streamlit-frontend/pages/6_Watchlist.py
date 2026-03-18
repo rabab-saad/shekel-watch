@@ -39,17 +39,43 @@ client  = APIClient()
 
 
 # ── Live-price cache (30-second TTL slot) ─────────────────────────────────────
-@st.cache_data(ttl=30)
-def _fetch_watchlist_prices(slot: int, tickers: tuple) -> tuple[dict, str]:
-    # APIClient(token=None): /api/stocks is a public endpoint, no auth needed.
-    # Avoids touching st.session_state inside a cached function.
-    _client = APIClient(token=None)
+def _fetch_watchlist_prices(tickers: tuple) -> tuple[dict, str, str | None]:
+    """
+    Fetch live prices for watchlist tickers.
+
+    Uses a 30-second session-state TTL cache instead of @st.cache_data.
+    @st.cache_data is avoided because the APIClient constructor accesses
+    st.session_state, which raises inside a cached function in newer
+    Streamlit versions — silently returning an empty dict every time.
+
+    Returns (price_map, updated_at, error_message_or_None).
+    """
+    cache = st.session_state.get("_wl_price_cache", {})
+    if cache.get("tickers") == tickers and time.time() - cache.get("ts", 0) < 30:
+        return cache["pm"], cache["updated_at"], cache.get("error")
+
+    error_msg: str | None = None
     try:
-        quotes = _client.get_stocks(list(tickers))
+        quotes = client.get_stocks(list(tickers))
         pm = {q["ticker"]: q for q in quotes}
-    except Exception:
-        pm = {}
-    return pm, datetime.now().strftime("%H:%M:%S")
+        if not pm and tickers:
+            error_msg = "Backend returned no price data — check server logs"
+    except APIError as e:
+        pm     = {}
+        error_msg = e.message
+    except Exception as e:
+        pm     = {}
+        error_msg = str(e)
+
+    updated_at = datetime.now().strftime("%H:%M:%S")
+    st.session_state["_wl_price_cache"] = {
+        "tickers":    tickers,
+        "ts":         time.time(),
+        "pm":         pm,
+        "updated_at": updated_at,
+        "error":      error_msg,
+    }
+    return pm, updated_at, error_msg
 
 
 # ── Search & Add ──────────────────────────────────────────────────────────────
@@ -156,17 +182,19 @@ if not watchlist:
 
 tickers = [item["ticker"] for item in watchlist]
 
-# Live prices — slot changes every 30 s so data refreshes on next interaction
-slot = int(time.time() // 30)
-price_map, updated_at = _fetch_watchlist_prices(slot, tuple(tickers))
+# Live prices (session-state TTL cache, 30 s)
+price_map, updated_at, price_error = _fetch_watchlist_prices(tuple(tickers))
 
 # Subheader row with timestamp + manual refresh button
 sub_col, ref_col = st.columns([5, 1])
 sub_col.subheader(t("your_watchlist").format(n=len(watchlist)))
 sub_col.caption(f"{t('last_updated')}: {updated_at}")
 if ref_col.button(t("refresh"), key="wl_refresh"):
-    st.cache_data.clear()
+    st.session_state.pop("_wl_price_cache", None)
     st.rerun()
+
+if price_error:
+    st.warning(f"⚠ {t('could_not_load_prices').format(error=price_error)}")
 
 # Table column headers
 COL_WIDTHS = [1.5, 2.8, 1.2, 1.6, 1.6, 1.3, 1.3, 1.0]

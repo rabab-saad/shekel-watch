@@ -53,6 +53,8 @@ async function getQuoteFromTwelveData(ticker: string): Promise<QuoteResult> {
     changePercent: parseFloat(data.percent_change ?? changePercent.toFixed(4)),
     currency:      data.currency ?? 'USD',
     marketState:   data.is_market_open ? 'REGULAR' : 'CLOSED',
+    dayHigh:       data.high  ? parseFloat(data.high)  : undefined,
+    dayLow:        data.low   ? parseFloat(data.low)   : undefined,
   };
 }
 
@@ -99,8 +101,8 @@ export async function getBatchQuotes(tickers: string[]): Promise<QuoteResult[]> 
   for (const ticker of tickers) {
     try {
       results.push(await getQuote(ticker));
-    } catch {
-      // skip failed tickers
+    } catch (err) {
+      logger.warn(`getBatchQuotes: failed to fetch ${ticker}`, { error: err instanceof Error ? err.message : String(err) });
     }
     await sleep(300); // 300 ms between tickers to avoid rate-limiting
   }
