@@ -924,12 +924,13 @@ with tab_trade:
 
             sc1, sc2 = st.columns(2)
             with sc1:
+                _order_type_key = f"trade_{preview['order_type']}"
+                _action_label = t("trade_buy") if preview["action"] == "buy" else t("trade_sell")
                 st.markdown(
                     f"**{preview['symbol']}** · {preview['name']}  \n"
-                    f"**{t('trade_action_label')}:** "
-                    f"{t('trade_buy') if preview['action'] == 'buy' else t('trade_sell')}  \n"
+                    f"**{t('trade_action_label')}:** {_action_label}  \n"
                     f"**{t('trade_units_label')}:** {preview['units']:.4f}  \n"
-                    f"**{t('trade_order_type_label')}:** {t(f\"trade_{preview['order_type']}\")}"
+                    f"**{t('trade_order_type_label')}:** {t(_order_type_key)}"
                 )
             with sc2:
                 st.markdown(
