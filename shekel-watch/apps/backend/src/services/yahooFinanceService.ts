@@ -58,6 +58,43 @@ async function getQuoteFromTwelveData(ticker: string): Promise<QuoteResult> {
   };
 }
 
+// ── Yahoo Finance Chart API quote (crumb-free, primary source) ────────────────
+async function getQuoteFromYahooChart(ticker: string): Promise<QuoteResult> {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}`;
+  const { data } = await axios.get(url, {
+    params: { interval: '1d', range: '5d', includePrePost: false },
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)',
+      'Accept':     'application/json',
+    },
+    timeout: 12_000,
+  });
+
+  const result = data?.chart?.result?.[0];
+  if (!result) throw new Error(`No chart result for ${ticker}`);
+
+  const meta  = result.meta ?? {};
+  const price = meta.regularMarketPrice as number | undefined;
+  if (!price) throw new Error(`No regularMarketPrice in chart for ${ticker}`);
+
+  const previousClose = (meta.previousClose ?? meta.chartPreviousClose ?? price) as number;
+  const changePercent = previousClose
+    ? ((price - previousClose) / previousClose) * 100
+    : 0;
+
+  return {
+    ticker,
+    name:          (meta.longName ?? meta.shortName ?? ticker) as string,
+    price,
+    previousClose,
+    changePercent: parseFloat(changePercent.toFixed(4)),
+    currency:      (meta.currency  ?? 'USD')    as string,
+    marketState:   (meta.marketState ?? 'CLOSED') as string,
+    dayHigh:       meta.regularMarketDayHigh  ?? undefined,
+    dayLow:        meta.regularMarketDayLow   ?? undefined,
+  };
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export async function getQuote(ticker: string): Promise<QuoteResult> {
@@ -66,28 +103,32 @@ export async function getQuote(ticker: string): Promise<QuoteResult> {
 
   let result: QuoteResult;
 
-  // Primary: Yahoo Finance
+  // Primary: Yahoo Finance Chart API (crumb-free — not affected by rate-limit on /quote)
   try {
-    const quote = await yahooFinance.quote(ticker);
-    if (!quote.regularMarketPrice) throw new Error('No price');
-
-    result = {
-      ticker,
-      name:          quote.longName ?? quote.shortName ?? ticker,
-      price:         quote.regularMarketPrice,
-      previousClose: quote.regularMarketPreviousClose ?? 0,
-      changePercent: quote.regularMarketChangePercent ?? 0,
-      currency:      quote.currency ?? 'USD',
-      marketState:   quote.marketState ?? 'CLOSED',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      dayHigh:       (quote as any).regularMarketDayHigh ?? undefined,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      dayLow:        (quote as any).regularMarketDayLow  ?? undefined,
-    };
+    result = await getQuoteFromYahooChart(ticker);
   } catch {
-    // Fallback: Twelve Data (handles Yahoo rate-limits)
-    logger.warn(`Yahoo Finance failed for ${ticker}, falling back to Twelve Data`);
-    result = await getQuoteFromTwelveData(ticker);
+    // Secondary: yahoo-finance2 library
+    try {
+      const quote = await yahooFinance.quote(ticker);
+      if (!quote.regularMarketPrice) throw new Error('No price');
+      result = {
+        ticker,
+        name:          quote.longName ?? quote.shortName ?? ticker,
+        price:         quote.regularMarketPrice,
+        previousClose: quote.regularMarketPreviousClose ?? 0,
+        changePercent: quote.regularMarketChangePercent ?? 0,
+        currency:      quote.currency ?? 'USD',
+        marketState:   quote.marketState ?? 'CLOSED',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        dayHigh:       (quote as any).regularMarketDayHigh ?? undefined,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        dayLow:        (quote as any).regularMarketDayLow  ?? undefined,
+      };
+    } catch {
+      // Tertiary: Twelve Data
+      logger.warn(`Chart API and yahoo-finance2 both failed for ${ticker}, falling back to Twelve Data`);
+      result = await getQuoteFromTwelveData(ticker);
+    }
   }
 
   quoteCache.set(ticker, { value: result, expiresAt: Date.now() + QUOTE_TTL_MS });
