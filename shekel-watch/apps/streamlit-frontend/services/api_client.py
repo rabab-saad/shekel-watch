@@ -101,6 +101,45 @@ class APIClient:
         marketCap, pe, volume, week52High, week52Low, sector, industry, beta }"""
         return self.get(f"/api/stocks/{ticker}/detail")
 
+    # ── Trade simulation ──────────────────────────────────────────────────────
+
+    def get_trade_balance(self) -> dict:
+        """GET /api/trade/balance → { balance_ils }"""
+        return self.get("/api/trade/balance")
+
+    def get_trade_history(self, limit: int = 50) -> list:
+        """GET /api/trade/history → [{symbol, action, units, price_ils, total_ils, order_type, executed_at}]"""
+        return self.get("/api/trade/history", params={"limit": limit})
+
+    def get_trade_pending(self) -> list:
+        """GET /api/trade/pending → [{id, symbol, action, units, order_type, trigger_price, status, created_at}]"""
+        return self.get("/api/trade/pending")
+
+    def post_trade_execute(self, symbol: str, action: str, units: float, price_ils: float) -> dict:
+        """POST /api/trade/execute → { success, newBalance }"""
+        return self.post("/api/trade/execute", {
+            "symbol": symbol, "action": action,
+            "units": units, "priceIls": price_ils,
+        })
+
+    def post_trade_order(
+        self, symbol: str, action: str, units: float,
+        order_type: str, trigger_price: float,
+    ) -> dict:
+        """POST /api/trade/order → { success, order }"""
+        return self.post("/api/trade/order", {
+            "symbol": symbol, "action": action, "units": units,
+            "orderType": order_type, "triggerPrice": trigger_price,
+        })
+
+    def delete_trade_order(self, order_id: str) -> dict:
+        """DELETE /api/trade/order/:id → { success }"""
+        url  = f"{self.base_url}/api/trade/order/{order_id}"
+        resp = requests.delete(url, headers=self._headers(), timeout=15)
+        if not resp.ok:
+            raise APIError(resp.status_code, resp.text[:200])
+        return resp.json()
+
     def get_market_news(self, lang: str = "en") -> dict:
         """GET /api/market-news?lang=en → { usAnalysis, israelAnalysis, indices, generatedAt }"""
         return self.get("/api/market-news", params={"lang": lang})

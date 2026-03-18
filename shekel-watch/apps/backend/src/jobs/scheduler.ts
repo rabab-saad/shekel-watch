@@ -4,6 +4,7 @@ import { runRateSnapshot }      from './rateSnapshot';
 import { runUpdateRiskScores }  from './updateRiskScores';
 import { runArbitrageScan }     from './arbitrageScan';
 import { runVolatilityMonitor } from './volatilityMonitor';
+import { checkPendingOrders }   from './pendingOrderMonitor';
 import { logger } from '../utils/logger';
 
 export function startScheduler(): void {
@@ -36,5 +37,14 @@ export function startScheduler(): void {
     await runVolatilityMonitor();
   });
 
-  logger.info('Cron scheduler started (morning alerts, hourly snapshots, daily risk scores, arbitrage scan, volatility monitor)');
+  // Pending order monitor: every 60 seconds — checks limit/stop-loss/take-profit orders
+  cron.schedule('* * * * *', async () => {
+    try {
+      await checkPendingOrders();
+    } catch (err) {
+      logger.error('Pending order monitor failed', err);
+    }
+  });
+
+  logger.info('Cron scheduler started (morning alerts, hourly snapshots, daily risk scores, arbitrage scan, volatility monitor, pending order monitor)');
 }

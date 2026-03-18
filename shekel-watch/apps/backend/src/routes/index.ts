@@ -10,6 +10,7 @@ import explainRouter    from './explain';
 import crewRouter       from './crew';
 import portfolioRouter  from './portfolio';
 import marketNewsRouter from './marketNews';
+import tradeRouter      from './trade';
 
 export const router = Router();
 
@@ -24,3 +25,4 @@ router.use('/explain',      explainRouter);     // POST /api/explain
 router.use('/crew',         crewRouter);        // GET  /api/crew/summary|currency-arbitrage, POST /api/crew/compose-alert
 router.use('/portfolio',    portfolioRouter);   // GET  /api/portfolio/analysis, POST /api/portfolio/suggestions
 router.use('/market-news',  marketNewsRouter);  // GET  /api/market-news?lang=en
+router.use('/trade',        tradeRouter);       // GET/POST/DELETE /api/trade/*

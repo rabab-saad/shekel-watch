@@ -158,8 +158,8 @@ st.divider()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 
-tab_search, tab_portfolio, tab_analysis, tab_ai = st.tabs(
-    [t("tab_search"), t("tab_portfolio"), t("tab_analysis"), t("tab_ai")]
+tab_search, tab_portfolio, tab_analysis, tab_ai, tab_trade = st.tabs(
+    [t("tab_search"), t("tab_portfolio"), t("tab_analysis"), t("tab_ai"), t("tab_trade")]
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -665,3 +665,404 @@ with tab_ai:
             st.markdown(suggestions_text)
         else:
             st.info(t("click_refresh"))
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TAB 5: TRADE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+with tab_trade:
+
+    # ── Per-trade 10-second price cache (separate from the 60s portfolio cache) ──
+    @st.cache_data(ttl=10, show_spinner=False)
+    def _trade_live_quote(ticker: str) -> dict:
+        try:
+            return client.get_stock(ticker)
+        except APIError:
+            return {}
+
+    def _trade_price_in_ils(ticker: str, usd_rate: float) -> tuple[float, dict]:
+        q     = _trade_live_quote(ticker)
+        price = float(q.get("price") or 0)
+        cur   = (q.get("currency") or "USD").upper()
+        if cur == "ILS":
+            return price, q
+        if cur == "GBX":
+            return price / 100 * usd_rate * 0.79, q
+        return price * usd_rate, q
+
+    # ── Cash Banner ───────────────────────────────────────────────────────────
+    try:
+        bal_data    = client.get_trade_balance()
+        trade_cash  = float(bal_data.get("balance_ils", 0))
+        cash_ok     = True
+    except APIError:
+        trade_cash  = 0.0
+        cash_ok     = False
+
+    b1, b2 = st.columns(2)
+    b1.metric(t("trade_cash_available"), fmt_ils(trade_cash))
+    if not cash_ok:
+        b1.caption("⚠ Could not load balance")
+
+    st.divider()
+
+    # ── Step 1: Search & Select ───────────────────────────────────────────────
+    st.subheader(t("trade_step1_title"))
+
+    tq_col, tb_col = st.columns([4, 1])
+    with tq_col:
+        trade_query = st.text_input(
+            "TSearch", label_visibility="collapsed",
+            placeholder=t("search_placeholder"),
+            key="trade_search_query",
+        )
+    with tb_col:
+        do_trade_search = st.button(t("search_btn"), key="trade_search_btn", use_container_width=True)
+
+    if do_trade_search and trade_query:
+        with st.spinner(t("searching")):
+            try:
+                hits = client.search_stocks(trade_query).get("quotes", [])
+                st.session_state["trade_hits"] = hits
+            except APIError as e:
+                st.session_state["trade_hits"] = []
+                st.error(t("search_failed_msg").format(error=e.message))
+
+    for i, h in enumerate(st.session_state.get("trade_hits", [])):
+        ca, cb, cc, cd, ce = st.columns([1.5, 3.5, 1.2, 1.2, 1])
+        ca.markdown(f"**{h.get('symbol', '')}**")
+        cb.write(h.get("name", ""))
+        cc.write(h.get("typeDisp", ""))
+        cd.write(h.get("exchange", ""))
+        if ce.button(t("trade_select"), key=f"tsel_{h['symbol']}_{i}"):
+            st.session_state["trade_ticker"]      = h["symbol"]
+            st.session_state["trade_ticker_name"] = h.get("name", h["symbol"])
+            st.session_state["trade_ticker_type"] = h.get("typeDisp", "")
+            st.session_state.pop("trade_hits",    None)
+            st.session_state.pop("trade_preview", None)
+            st.rerun()
+
+    # ── Selected Instrument Panel ─────────────────────────────────────────────
+    trade_ticker = st.session_state.get("trade_ticker")
+
+    if not trade_ticker:
+        st.info(t("trade_no_ticker_selected"))
+    else:
+        trade_name = st.session_state.get("trade_ticker_name", trade_ticker)
+        trade_type = st.session_state.get("trade_ticker_type", "")
+
+        st.divider()
+        head_col, clr_col = st.columns([5, 1])
+        head_col.subheader(f"📋 {trade_ticker}  ·  {trade_name}")
+        if trade_type:
+            head_col.caption(trade_type)
+        if clr_col.button(t("trade_clear_selection"), key="trade_clear"):
+            for k in ("trade_ticker", "trade_ticker_name", "trade_ticker_type", "trade_preview", "trade_hits"):
+                st.session_state.pop(k, None)
+            st.rerun()
+
+        # ── Live Price ────────────────────────────────────────────────────────
+        usd_rate_t           = _usd_ils()
+        trade_price_ils, tq  = _trade_price_in_ils(trade_ticker, usd_rate_t)
+        change_pct           = float(tq.get("changePercent") or 0)
+        is_stale             = trade_price_ils <= 0
+
+        if is_stale:
+            trade_price_ils = float(st.session_state.get(f"tp_{trade_ticker}", 0))
+        else:
+            st.session_state[f"tp_{trade_ticker}"] = trade_price_ils
+
+        ref_col, _ = st.columns([1, 5])
+        if ref_col.button(t("trade_refresh_price"), key="trade_price_refresh"):
+            _trade_live_quote.clear()
+            st.rerun()
+
+        p1, p2, p3, p4 = st.columns(4)
+        p1.metric(t("trade_live_price"), fmt_ils(trade_price_ils),
+                  delta=fmt_pct(change_pct) if not is_stale else None)
+        if is_stale:
+            p1.caption(t("trade_stale_price"))
+        p2.metric(t("trade_daily_change_label"), fmt_pct(change_pct) if not is_stale else "—")
+        p3.metric("High", f"{tq.get('regularMarketDayHigh') or '—'}")
+        p4.metric("Low",  f"{tq.get('regularMarketDayLow')  or '—'}")
+
+        # ── Sparkline (1 week history) ────────────────────────────────────────
+        try:
+            bars = client.get_stock_history(trade_ticker, "1wk")
+            if bars:
+                df_sp = pd.DataFrame(bars)
+                fig_sp = px.line(df_sp, x="time", y="close", template="plotly_dark",
+                                 color_discrete_sequence=["#38bdf8"])
+                fig_sp.update_layout(
+                    height=110, margin=dict(t=0, b=0, l=0, r=0), showlegend=False,
+                    xaxis=dict(visible=False), yaxis=dict(visible=False),
+                    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                )
+                st.plotly_chart(fig_sp, use_container_width=True)
+        except APIError:
+            pass
+
+        st.divider()
+
+        # ── Holdings for this ticker ──────────────────────────────────────────
+        pos_row   = next((p for p in positions if p["symbol"] == trade_ticker), None)
+        held_units = 0.0
+        if pos_row and float(pos_row.get("avg_buy_price") or 0) > 0:
+            held_units = float(pos_row["quantity"]) / float(pos_row["avg_buy_price"])
+
+        # ── Order Form (Steps 2-4) ────────────────────────────────────────────
+        st.markdown(f"**{t('trade_action_label')}**")
+        trade_action = st.radio(
+            t("trade_action_label"), label_visibility="collapsed",
+            options=["buy", "sell"],
+            format_func=lambda x: t("trade_buy") if x == "buy" else t("trade_sell"),
+            key="trade_action_radio",
+            horizontal=True,
+        )
+
+        if trade_action == "sell":
+            if held_units <= 0:
+                st.warning(t("trade_sell_no_holding").format(symbol=trade_ticker))
+            else:
+                st.caption(f"{t('trade_current_holding')}: **{held_units:.4f}** {t('trade_units_held')}")
+
+        trade_units = st.number_input(
+            t("trade_units_label"), min_value=0.001, value=1.0, step=1.0,
+            format="%.3f", key="trade_units_input",
+        )
+
+        # Real-time cost preview
+        if trade_price_ils > 0:
+            est_total = trade_units * trade_price_ils
+            ci1, ci2 = st.columns(2)
+            ci1.metric(t("trade_estimated_total"), fmt_ils(est_total))
+            if trade_action == "buy":
+                ci2.metric(t("trade_available_cash"), fmt_ils(trade_cash))
+            else:
+                ci2.metric(t("trade_current_holding"),
+                           f"{held_units:.4f} {t('trade_units_held')}")
+
+        # Order type
+        order_opts = ["market", "limit"]
+        if trade_action == "sell":
+            order_opts += ["stop_loss", "take_profit"]
+        trade_order_type = st.selectbox(
+            t("trade_order_type_label"),
+            options=order_opts,
+            format_func=lambda x: t(f"trade_{x}"),
+            key="trade_order_type_select",
+        )
+
+        # Trigger price (only for non-market)
+        trigger_price = None
+        if trade_order_type != "market":
+            trigger_helps = {
+                "limit":       t("trade_trigger_help_limit_buy") if trade_action == "buy" else t("trade_trigger_help_limit_sell"),
+                "stop_loss":   t("trade_trigger_help_stop_loss"),
+                "take_profit": t("trade_trigger_help_take_profit"),
+            }
+            trigger_price = st.number_input(
+                t("trade_trigger_price"),
+                min_value=0.0001,
+                value=max(trade_price_ils, 0.0001),
+                step=0.01,
+                format="%.4f",
+                help=trigger_helps.get(trade_order_type, ""),
+                key="trade_trigger_input",
+            )
+
+        # ── Preview Button ────────────────────────────────────────────────────
+        if st.button(t("trade_preview_btn"), key="trade_preview_btn", use_container_width=True):
+            errors = []
+            if trade_price_ils <= 0 and trade_order_type == "market":
+                errors.append(t("trade_price_required"))
+            if trade_units <= 0:
+                errors.append(t("trade_units_required"))
+            if trade_action == "buy" and trade_order_type == "market":
+                if trade_price_ils > 0 and trade_units * trade_price_ils > trade_cash + 0.01:
+                    errors.append(t("trade_exceeds_cash").format(available=fmt_ils(trade_cash)))
+            if trade_action == "buy" and trade_order_type != "market" and trigger_price:
+                if trade_units * trigger_price > trade_cash + 0.01:
+                    errors.append(t("trade_exceeds_cash").format(available=fmt_ils(trade_cash)))
+            if trade_action == "sell" and trade_units > held_units + 0.001:
+                errors.append(t("trade_exceeds_holding").format(holding=f"{held_units:.4f}"))
+            if trade_action == "sell" and held_units <= 0:
+                errors.append(t("trade_sell_no_holding").format(symbol=trade_ticker))
+
+            if errors:
+                for e in errors:
+                    st.error(e)
+            else:
+                exec_price = trigger_price if (trade_order_type != "market" and trigger_price) else trade_price_ils
+                st.session_state["trade_preview"] = {
+                    "symbol":        trade_ticker,
+                    "name":          trade_name,
+                    "action":        trade_action,
+                    "units":         trade_units,
+                    "order_type":    trade_order_type,
+                    "trigger_price": trigger_price,
+                    "price_ils":     trade_price_ils,
+                    "total_ils":     trade_units * exec_price,
+                }
+
+        # ── Step 5: Order Confirmation ────────────────────────────────────────
+        preview = st.session_state.get("trade_preview")
+        if preview and preview.get("symbol") == trade_ticker:
+            st.divider()
+            st.subheader(t("trade_order_summary"))
+
+            exec_price_disp = (
+                preview["trigger_price"]
+                if preview["order_type"] != "market" and preview["trigger_price"]
+                else preview["price_ils"]
+            )
+            remaining_after = (
+                trade_cash - preview["total_ils"]
+                if preview["action"] == "buy"
+                else trade_cash + preview["total_ils"]
+            )
+
+            sc1, sc2 = st.columns(2)
+            with sc1:
+                st.markdown(
+                    f"**{preview['symbol']}** · {preview['name']}  \n"
+                    f"**{t('trade_action_label')}:** "
+                    f"{t('trade_buy') if preview['action'] == 'buy' else t('trade_sell')}  \n"
+                    f"**{t('trade_units_label')}:** {preview['units']:.4f}  \n"
+                    f"**{t('trade_order_type_label')}:** {t(f\"trade_{preview['order_type']}\")}"
+                )
+            with sc2:
+                st.markdown(
+                    f"**{t('trade_at_price')}:** {fmt_ils(exec_price_disp)}  \n"
+                    f"**{t('trade_estimated_total')}:** {fmt_ils(preview['total_ils'])}  \n"
+                    f"**{t('trade_remaining_after')}:** {fmt_ils(remaining_after)}"
+                )
+
+            cc1, cc2 = st.columns(2)
+            confirmed = cc1.button(t("trade_confirm_order"), key="trade_confirm_btn",
+                                   use_container_width=True, type="primary")
+            cancelled = cc2.button(t("trade_cancel"), key="trade_cancel_btn",
+                                   use_container_width=True)
+
+            if confirmed:
+                if preview["order_type"] == "market":
+                    with st.spinner(t("trade_executing")):
+                        try:
+                            result = client.post_trade_execute(
+                                symbol    = preview["symbol"],
+                                action    = preview["action"],
+                                units     = preview["units"],
+                                price_ils = preview["price_ils"],
+                            )
+                            if result.get("success"):
+                                st.success(t("trade_order_placed").format(
+                                    action=t(f"trade_{preview['action']}"),
+                                    units=f"{preview['units']:.4f}",
+                                    symbol=preview["symbol"],
+                                    total=fmt_ils(preview["total_ils"]),
+                                ))
+                                st.session_state.pop("trade_preview", None)
+                                _live_quote.clear()
+                                _trade_live_quote.clear()
+                                st.rerun()
+                            else:
+                                st.error(t("trade_order_failed").format(error=result.get("error", "")))
+                        except APIError as e:
+                            st.error(t("trade_order_failed").format(error=e.message))
+                else:
+                    with st.spinner(t("trade_placing_order")):
+                        try:
+                            result = client.post_trade_order(
+                                symbol        = preview["symbol"],
+                                action        = preview["action"],
+                                units         = preview["units"],
+                                order_type    = preview["order_type"],
+                                trigger_price = preview["trigger_price"],
+                            )
+                            if result.get("success"):
+                                st.success(t("trade_pending_placed").format(
+                                    type    = t(f"trade_{preview['order_type']}"),
+                                    symbol  = preview["symbol"],
+                                    trigger = f"{preview['trigger_price']:.2f}",
+                                ))
+                                st.session_state.pop("trade_preview", None)
+                                st.rerun()
+                            else:
+                                st.error(t("trade_order_failed").format(error=result.get("error", "")))
+                        except APIError as e:
+                            st.error(t("trade_order_failed").format(error=e.message))
+
+            if cancelled:
+                st.session_state.pop("trade_preview", None)
+                st.rerun()
+
+    # ── Pending Orders ────────────────────────────────────────────────────────
+    st.divider()
+    st.subheader(t("trade_pending_orders"))
+
+    try:
+        pending = client.get_trade_pending()
+    except APIError:
+        pending = []
+
+    if not pending:
+        st.info(t("trade_no_pending"))
+    else:
+        # Fetch live prices for pending symbols
+        pending_syms = list({p["symbol"] for p in pending})
+        pend_prices: dict[str, float] = {}
+        for sym in pending_syms:
+            try:
+                pend_prices[sym] = _price_in_ils(sym, _usd_ils())
+            except Exception:
+                pass
+
+        hdr = st.columns([1.5, 1, 1, 1.5, 1.5, 1.5, 1.5, 1])
+        for col, label in zip(hdr, [
+            t("trade_col_symbol"), t("trade_col_action"), t("trade_col_units"),
+            t("trade_col_type"), t("trade_col_trigger"), t("trade_col_current_price"),
+            t("trade_col_created"), "",
+        ]):
+            col.markdown(f"**{label}**")
+
+        for order in pending:
+            sym     = order["symbol"]
+            row     = st.columns([1.5, 1, 1, 1.5, 1.5, 1.5, 1.5, 1])
+            row[0].write(f"**{sym}**")
+            row[1].write(t(f"trade_{order['action']}"))
+            row[2].write(f"{float(order['units']):.4f}")
+            row[3].write(t(f"trade_{order['order_type']}"))
+            row[4].write(fmt_ils(float(order["trigger_price"])))
+            live_p = pend_prices.get(sym)
+            row[5].write(fmt_ils(live_p) if live_p else "—")
+            created = order.get("created_at", "")[:16].replace("T", " ")
+            row[6].write(created)
+            if row[7].button(t("trade_cancel_order_btn"), key=f"cxl_{order['id']}"):
+                try:
+                    r = client.delete_trade_order(order["id"])
+                    if r.get("success"):
+                        st.success(t("trade_order_cancelled"))
+                        st.rerun()
+                except APIError as e:
+                    st.error(str(e))
+
+    # ── Transaction History ───────────────────────────────────────────────────
+    with st.expander(t("trade_history"), expanded=False):
+        try:
+            history = client.get_trade_history(limit=50)
+        except APIError:
+            history = []
+
+        if not history:
+            st.info(t("trade_no_history"))
+        else:
+            df_hist = pd.DataFrame([{
+                t("trade_hist_date"):   h["executed_at"][:19].replace("T", " "),
+                t("trade_hist_symbol"): h["symbol"],
+                t("trade_hist_action"): t(f"trade_{h['action']}"),
+                t("trade_hist_units"):  f"{float(h['units']):.4f}",
+                t("trade_hist_price"):  fmt_ils(float(h["price_ils"])),
+                t("trade_hist_total"):  fmt_ils(float(h["total_ils"])),
+                t("trade_hist_type"):   t(f"trade_{h['order_type']}"),
+            } for h in history])
+            st.dataframe(df_hist, use_container_width=True, hide_index=True)
