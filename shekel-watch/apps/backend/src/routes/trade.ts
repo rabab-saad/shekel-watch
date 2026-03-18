@@ -102,16 +102,21 @@ router.post('/execute', requireAuth, async (req: Request, res: Response) => {
 // ── POST /api/trade/order ─────────────────────────────────────────────────────
 router.post('/order', requireAuth, async (req: Request, res: Response) => {
   const { user } = req as AuthedReq;
-  const { symbol, action, units, orderType, triggerPrice } = req.body as {
+  const { symbol, action, units, orderType, triggerPrice, limitPrice } = req.body as {
     symbol:       string;
     action:       'buy' | 'sell';
     units:        number;
-    orderType:    'limit' | 'stop_loss' | 'take_profit';
+    orderType:    'limit' | 'stop_loss' | 'take_profit' | 'stop' | 'stop_limit';
     triggerPrice: number;
+    limitPrice?:  number;
   };
 
   if (!symbol || !action || !units || !orderType || !triggerPrice) {
     res.status(400).json({ error: 'Missing required fields' });
+    return;
+  }
+  if (orderType === 'stop_limit' && !limitPrice) {
+    res.status(400).json({ error: 'limitPrice is required for stop_limit orders' });
     return;
   }
 
@@ -150,6 +155,7 @@ router.post('/order', requireAuth, async (req: Request, res: Response) => {
         units:         Number(units),
         order_type:    orderType,
         trigger_price: Number(triggerPrice),
+        limit_price:   limitPrice ? Number(limitPrice) : null,
       })
       .select()
       .single();

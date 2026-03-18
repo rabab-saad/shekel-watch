@@ -687,50 +687,111 @@ with tab_trade:
                 ci2.metric(t("trade_current_holding"),
                            f"{held_units:.4f} {t('trade_units_held')}")
 
-        # Order type
-        order_opts = ["market", "limit"]
-        if trade_action == "sell":
-            order_opts += ["stop_loss", "take_profit"]
-        trade_order_type = st.selectbox(
-            t("trade_order_type_label"),
-            options=order_opts,
-            format_func=lambda x: t(f"trade_{x}"),
-            key="trade_order_type_select",
-        )
+        # ── Order Type Selector (visual cards) ───────────────────────────────
+        st.markdown(f"**{t('trade_order_type_label')}**")
+        _ALL_ORDER_TYPES = ["market", "limit", "stop", "stop_limit"]
+        if "trade_order_type" not in st.session_state:
+            st.session_state["trade_order_type"] = "market"
+        if "trade_explain_open" not in st.session_state:
+            st.session_state["trade_explain_open"] = None
 
-        # Trigger price (only for non-market)
-        trigger_price = None
-        if trade_order_type != "market":
-            trigger_helps = {
-                "limit":       t("trade_trigger_help_limit_buy") if trade_action == "buy" else t("trade_trigger_help_limit_sell"),
-                "stop_loss":   t("trade_trigger_help_stop_loss"),
-                "take_profit": t("trade_trigger_help_take_profit"),
-            }
-            trigger_price = st.number_input(
-                t("trade_trigger_price"),
+        _cur_ot   = st.session_state["trade_order_type"]
+        _exp_open = st.session_state.get("trade_explain_open")
+
+        for _ot in _ALL_ORDER_TYPES:
+            _is_sel = (_cur_ot == _ot)
+            _c1, _c2, _c3 = st.columns([0.08, 0.74, 0.18])
+            _c1.markdown("🔵" if _is_sel else "⚪")
+            if _c2.button(
+                t(f"trade_{_ot}"),
+                key=f"ot_card_{_ot}",
+                use_container_width=True,
+                type="primary" if _is_sel else "secondary",
+            ):
+                st.session_state["trade_order_type"] = _ot
+                st.session_state["trade_explain_open"] = None
+                st.session_state.pop("trade_preview", None)
+                st.rerun()
+            if _c3.button(
+                "▲" if _exp_open == _ot else "?",
+                key=f"ot_help_{_ot}",
+                use_container_width=True,
+            ):
+                st.session_state["trade_explain_open"] = None if _exp_open == _ot else _ot
+                st.rerun()
+            if _exp_open == _ot:
+                st.caption(t(f"trade_order_explain_{_ot}"))
+
+        trade_order_type = st.session_state["trade_order_type"]
+
+        # ── Price Inputs (depend on order type) ──────────────────────────────
+        stop_price_val  = None
+        limit_price_val = None
+        if trade_order_type == "limit":
+            limit_price_val = st.number_input(
+                t("trade_limit_price_input"),
                 min_value=0.0001,
                 value=max(trade_price_ils, 0.0001),
                 step=0.01,
                 format="%.4f",
-                help=trigger_helps.get(trade_order_type, ""),
-                key="trade_trigger_input",
+                key="trade_limit_price_input",
+            )
+        elif trade_order_type == "stop":
+            stop_price_val = st.number_input(
+                t("trade_stop_price"),
+                min_value=0.0001,
+                value=max(trade_price_ils, 0.0001),
+                step=0.01,
+                format="%.4f",
+                key="trade_stop_price_input",
+            )
+        elif trade_order_type == "stop_limit":
+            _sl1, _sl2 = st.columns(2)
+            stop_price_val = _sl1.number_input(
+                t("trade_stop_price"),
+                min_value=0.0001,
+                value=max(trade_price_ils, 0.0001),
+                step=0.01,
+                format="%.4f",
+                key="trade_stop_price_sl_input",
+            )
+            limit_price_val = _sl2.number_input(
+                t("trade_limit_price_input"),
+                min_value=0.0001,
+                value=max(trade_price_ils, 0.0001),
+                step=0.01,
+                format="%.4f",
+                key="trade_limit_price_sl_input",
             )
 
         # ── Preview Button ────────────────────────────────────────────────────
         if st.button(t("trade_preview_btn"), key="trade_preview_btn", use_container_width=True):
             errors = []
-            if trade_price_ils <= 0 and trade_order_type == "market":
-                errors.append(t("trade_price_required"))
             if trade_units <= 0:
                 errors.append(t("trade_units_required"))
-            if trade_action == "buy" and trade_order_type == "market":
-                if trade_price_ils > 0 and trade_units * trade_price_ils > trade_cash + 0.01:
-                    errors.append(t("trade_exceeds_cash").format(available=fmt_ils(trade_cash)))
-            if trade_action == "buy" and trade_order_type != "market" and trigger_price:
-                if trade_units * trigger_price > trade_cash + 0.01:
-                    errors.append(t("trade_exceeds_cash").format(available=fmt_ils(trade_cash)))
+            if trade_order_type == "market" and trade_price_ils <= 0:
+                errors.append(t("trade_price_required").format(order_type=t("trade_market")))
+            if trade_order_type in ("limit", "stop_limit") and not (limit_price_val and limit_price_val > 0):
+                errors.append(t("trade_price_required").format(order_type=t(f"trade_{trade_order_type}")))
+            if trade_order_type in ("stop", "stop_limit") and not (stop_price_val and stop_price_val > 0):
+                errors.append(t("trade_price_required").format(order_type=t(f"trade_{trade_order_type}")))
+            if (trade_order_type == "stop_limit" and stop_price_val and limit_price_val
+                    and abs(stop_price_val - limit_price_val) < 0.0001):
+                errors.append(t("trade_stop_limit_price_identical"))
+
+            # Estimate execution price for cash/holding checks
+            _exec_est = trade_price_ils
+            if trade_order_type == "limit":
+                _exec_est = limit_price_val or trade_price_ils
+            elif trade_order_type in ("stop", "stop_limit"):
+                _exec_est = stop_price_val or trade_price_ils
+
+            if trade_action == "buy" and _exec_est > 0 and trade_units * _exec_est > trade_cash + 0.01:
+                errors.append(t("trade_exceeds_cash").format(
+                    need=trade_units * _exec_est, have=trade_cash))
             if trade_action == "sell" and trade_units > held_units + 0.001:
-                errors.append(t("trade_exceeds_holding").format(holding=f"{held_units:.4f}"))
+                errors.append(t("trade_exceeds_holding").format(
+                    need=trade_units, have=held_units))
             if trade_action == "sell" and held_units <= 0:
                 errors.append(t("trade_sell_no_holding").format(symbol=trade_ticker))
 
@@ -738,16 +799,16 @@ with tab_trade:
                 for e in errors:
                     st.error(e)
             else:
-                exec_price = trigger_price if (trade_order_type != "market" and trigger_price) else trade_price_ils
                 st.session_state["trade_preview"] = {
-                    "symbol":        trade_ticker,
-                    "name":          trade_name,
-                    "action":        trade_action,
-                    "units":         trade_units,
-                    "order_type":    trade_order_type,
-                    "trigger_price": trigger_price,
-                    "price_ils":     trade_price_ils,
-                    "total_ils":     trade_units * exec_price,
+                    "symbol":      trade_ticker,
+                    "name":        trade_name,
+                    "action":      trade_action,
+                    "units":       trade_units,
+                    "order_type":  trade_order_type,
+                    "stop_price":  stop_price_val,
+                    "limit_price": limit_price_val,
+                    "price_ils":   trade_price_ils,
+                    "total_ils":   trade_units * _exec_est,
                 }
 
         # ── Step 5: Order Confirmation ────────────────────────────────────────
@@ -756,11 +817,6 @@ with tab_trade:
             st.divider()
             st.subheader(t("trade_order_summary"))
 
-            exec_price_disp = (
-                preview["trigger_price"]
-                if preview["order_type"] != "market" and preview["trigger_price"]
-                else preview["price_ils"]
-            )
             remaining_after = (
                 trade_cash - preview["total_ils"]
                 if preview["action"] == "buy"
@@ -769,17 +825,29 @@ with tab_trade:
 
             sc1, sc2 = st.columns(2)
             with sc1:
-                _order_type_key = f"trade_{preview['order_type']}"
                 _action_label = t("trade_buy") if preview["action"] == "buy" else t("trade_sell")
+                _ot_label     = t(f"trade_{preview['order_type']}")
                 st.markdown(
                     f"**{preview['symbol']}** · {preview['name']}  \n"
                     f"**{t('trade_action_label')}:** {_action_label}  \n"
                     f"**{t('trade_units_label')}:** {preview['units']:.4f}  \n"
-                    f"**{t('trade_order_type_label')}:** {t(_order_type_key)}"
+                    f"**{t('trade_order_type_label')}:** {_ot_label}"
                 )
             with sc2:
+                _ot = preview["order_type"]
+                if _ot == "market":
+                    _price_line = t("trade_summary_market").format(price=fmt_ils(preview["price_ils"]))
+                elif _ot == "limit":
+                    _price_line = t("trade_summary_limit").format(price=fmt_ils(preview["limit_price"]))
+                elif _ot == "stop":
+                    _price_line = t("trade_summary_stop").format(stop_price=fmt_ils(preview["stop_price"]))
+                else:  # stop_limit
+                    _price_line = t("trade_summary_stop_limit").format(
+                        stop_price=fmt_ils(preview["stop_price"]),
+                        limit_price=fmt_ils(preview["limit_price"]),
+                    )
                 st.markdown(
-                    f"**{t('trade_at_price')}:** {fmt_ils(exec_price_disp)}  \n"
+                    f"{_price_line}  \n"
                     f"**{t('trade_estimated_total')}:** {fmt_ils(preview['total_ils'])}  \n"
                     f"**{t('trade_remaining_after')}:** {fmt_ils(remaining_after)}"
                 )
@@ -818,18 +886,23 @@ with tab_trade:
                 else:
                     with st.spinner(t("trade_placing_order")):
                         try:
+                            _ot = preview["order_type"]
+                            _trig = (preview["stop_price"] if _ot in ("stop", "stop_limit")
+                                     else preview["limit_price"])
+                            _lim  = preview["limit_price"] if _ot == "stop_limit" else None
                             result = client.post_trade_order(
                                 symbol        = preview["symbol"],
                                 action        = preview["action"],
                                 units         = preview["units"],
-                                order_type    = preview["order_type"],
-                                trigger_price = preview["trigger_price"],
+                                order_type    = _ot,
+                                trigger_price = _trig,
+                                limit_price   = _lim,
                             )
                             if result.get("success"):
                                 st.success(t("trade_pending_placed").format(
-                                    type    = t(f"trade_{preview['order_type']}"),
+                                    type    = t(f"trade_{_ot}"),
                                     symbol  = preview["symbol"],
-                                    trigger = f"{preview['trigger_price']:.2f}",
+                                    trigger = f"{_trig:.2f}",
                                 ))
                                 st.session_state.pop("trade_preview", None)
                                 st.rerun()
@@ -878,7 +951,10 @@ with tab_trade:
             row[1].write(t(f"trade_{order['action']}"))
             row[2].write(f"{float(order['units']):.4f}")
             row[3].write(t(f"trade_{order['order_type']}"))
-            row[4].write(fmt_ils(float(order["trigger_price"])))
+            _tp_disp = fmt_ils(float(order["trigger_price"]))
+            if order.get("order_type") == "stop_limit" and order.get("limit_price"):
+                _tp_disp += f" / {fmt_ils(float(order['limit_price']))}"
+            row[4].write(_tp_disp)
             live_p = pend_prices.get(sym)
             row[5].write(fmt_ils(live_p) if live_p else "—")
             created = order.get("created_at", "")[:16].replace("T", " ")

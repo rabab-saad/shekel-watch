@@ -1,13 +1,16 @@
 /**
  * Pending Order Monitor
- * Checks all pending limit/stop-loss/take-profit orders against live prices
- * and executes any that have triggered.
+ * Checks all pending orders against live prices and executes any that trigger.
  *
  * Trigger logic:
- *   Limit BUY      → execute if live_price <= trigger_price
- *   Limit SELL     → execute if live_price >= trigger_price
- *   Stop Loss      → execute if live_price <= trigger_price  (always sell)
- *   Take Profit    → execute if live_price >= trigger_price  (always sell)
+ *   Limit BUY        → execute if live_price <= trigger_price
+ *   Limit SELL       → execute if live_price >= trigger_price
+ *   Stop BUY         → market-execute if live_price >= trigger_price (breakout buy)
+ *   Stop SELL        → market-execute if live_price <= trigger_price (stop-loss sell)
+ *   Stop-Limit BUY   → triggered if live_price >= trigger_price, then only fill if live_price <= limit_price
+ *   Stop-Limit SELL  → triggered if live_price <= trigger_price, then only fill if live_price >= limit_price
+ *   Stop Loss (legacy) → execute if live_price <= trigger_price  (always sell)
+ *   Take Profit (legacy) → execute if live_price >= trigger_price (always sell)
  */
 
 import { supabase } from '../config/supabase';
@@ -184,10 +187,27 @@ export async function checkPendingOrders(): Promise<void> {
       shouldExecute = order.action === 'buy'
         ? livePrice <= Number(order.trigger_price)   // buy cheap
         : livePrice >= Number(order.trigger_price);  // sell high
+    } else if (order.order_type === 'stop') {
+      // Becomes a market order when stop price is reached
+      shouldExecute = order.action === 'buy'
+        ? livePrice >= Number(order.trigger_price)   // breakout buy
+        : livePrice <= Number(order.trigger_price);  // stop-loss sell
+    } else if (order.order_type === 'stop_limit') {
+      // Triggered at stop price, fills only if limit price is also satisfied
+      const stopPrice  = Number(order.trigger_price);
+      const limitPrice = Number(order.limit_price);
+      const triggered  = order.action === 'buy'
+        ? livePrice >= stopPrice
+        : livePrice <= stopPrice;
+      if (triggered) {
+        shouldExecute = order.action === 'buy'
+          ? livePrice <= limitPrice   // don't pay above limit
+          : livePrice >= limitPrice;  // don't sell below limit
+      }
     } else if (order.order_type === 'stop_loss') {
-      shouldExecute = livePrice <= Number(order.trigger_price); // sell before further loss
+      shouldExecute = livePrice <= Number(order.trigger_price); // legacy: sell before further loss
     } else if (order.order_type === 'take_profit') {
-      shouldExecute = livePrice >= Number(order.trigger_price); // sell at profit target
+      shouldExecute = livePrice >= Number(order.trigger_price); // legacy: sell at profit target
     }
 
     if (!shouldExecute) continue;

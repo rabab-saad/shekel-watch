@@ -125,12 +125,16 @@ class APIClient:
     def post_trade_order(
         self, symbol: str, action: str, units: float,
         order_type: str, trigger_price: float,
+        limit_price: float | None = None,
     ) -> dict:
         """POST /api/trade/order → { success, order }"""
-        return self.post("/api/trade/order", {
+        body: dict = {
             "symbol": symbol, "action": action, "units": units,
             "orderType": order_type, "triggerPrice": trigger_price,
-        })
+        }
+        if limit_price is not None:
+            body["limitPrice"] = limit_price
+        return self.post("/api/trade/order", body)
 
     def delete_trade_order(self, order_id: str) -> dict:
         """DELETE /api/trade/order/:id → { success }"""
