@@ -60,10 +60,12 @@ def sign_up(email: str, password: str, display_name: str = "") -> dict:
 
 def get_google_oauth_url(redirect_to: str) -> dict:
     """
-    Start Google OAuth flow (PKCE).
-    Returns {"success": True, "url": "https://accounts.google.com/..."} on success.
-    The caller must redirect the user to that URL.
-    After Google auth, Supabase redirects back to redirect_to with ?code=xxx in the query string.
+    Start Google OAuth PKCE flow.
+    Returns {"success": True, "url": "...", "code_verifier": "..."} on success.
+
+    The caller MUST persist code_verifier (e.g. in st.session_state) before
+    redirecting the user to url — it is needed to complete the exchange after
+    Google redirects back.
     """
     try:
         client = get_anon_client()
@@ -74,19 +76,27 @@ def get_google_oauth_url(redirect_to: str) -> dict:
                 "scopes": "email profile",
             },
         })
-        return {"success": True, "url": response.url}
+        # Extract the PKCE code_verifier that the client stored in its in-memory
+        # storage so the caller can persist it across the browser redirect.
+        storage_key = client.auth._storage_key
+        code_verifier = client.auth._storage.get_item(f"{storage_key}-code-verifier")
+        return {"success": True, "url": response.url, "code_verifier": code_verifier}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
 
-def exchange_oauth_code(code: str) -> dict:
+def exchange_oauth_code(code: str, code_verifier: str) -> dict:
     """
     Exchange the ?code= query param returned by Supabase after Google auth.
+    code_verifier must be the value saved before the OAuth redirect.
     Returns the same shape as sign_in() on success.
     """
     try:
         client = get_anon_client()
-        resp = client.auth.exchange_code_for_session({"auth_code": code})
+        resp = client.auth.exchange_code_for_session({
+            "auth_code": code,
+            "code_verifier": code_verifier,
+        })
         return {
             "success": True,
             "user_id": resp.user.id,

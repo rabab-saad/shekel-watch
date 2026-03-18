@@ -27,8 +27,9 @@ def require_auth() -> bool:
     # ── Handle Google OAuth return ────────────────────────────────────────────
     code = st.query_params.get("code")
     if code and not st.session_state.get("access_token"):
+        code_verifier = st.session_state.pop("pkce_code_verifier", None)
         with st.spinner("Completing Google sign-in…"):
-            result = exchange_oauth_code(code)
+            result = exchange_oauth_code(code, code_verifier)
         # Clear the code from the URL immediately
         st.query_params.clear()
         if result["success"]:
@@ -61,6 +62,10 @@ def render_login():
         if st.button(t("sign_in_google"), use_container_width=True):
             result = get_google_oauth_url(_APP_URL)
             if result["success"]:
+                # Persist the PKCE verifier before the browser leaves the page.
+                # Streamlit keeps server sessions alive across external redirects
+                # (session is resumed via cookie when the user returns).
+                st.session_state["pkce_code_verifier"] = result.get("code_verifier")
                 st.markdown(
                     f'<meta http-equiv="refresh" content="0; url={result["url"]}">',
                     unsafe_allow_html=True,
