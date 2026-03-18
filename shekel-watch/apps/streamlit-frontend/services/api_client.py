@@ -101,6 +101,10 @@ class APIClient:
         marketCap, pe, volume, week52High, week52Low, sector, industry, beta }"""
         return self.get(f"/api/stocks/{ticker}/detail")
 
+    def get_market_news(self, lang: str = "en") -> dict:
+        """GET /api/market-news?lang=en → { usAnalysis, israelAnalysis, indices, generatedAt }"""
+        return self.get("/api/market-news", params={"lang": lang})
+
     def get_portfolio_analysis(self, symbols: list[str]) -> dict:
         """GET /api/portfolio/analysis?symbols=... → { symbols: {sym: meta}, usdIls }"""
         return self.get("/api/portfolio/analysis", params={"symbols": ",".join(symbols)})

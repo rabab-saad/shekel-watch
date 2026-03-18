@@ -9,16 +9,18 @@ import inflationRouter  from './inflation';
 import explainRouter    from './explain';
 import crewRouter       from './crew';
 import portfolioRouter  from './portfolio';
+import marketNewsRouter from './marketNews';
 
 export const router = Router();
 
-router.use('/rates',       ratesRouter);
-router.use('/stocks',      stocksRouter);
-router.use('/arbitrage',   arbitrageRouter);
-router.use('/summary',     summaryRouter);
-router.use('/webhook',     whatsappRouter);   // POST /api/webhook/whatsapp
-router.use('/paper-trade', paperTradeRouter); // POST /api/paper-trade
-router.use('/inflation',   inflationRouter);  // GET  /api/inflation
-router.use('/explain',     explainRouter);    // POST /api/explain
-router.use('/crew',        crewRouter);       // GET  /api/crew/summary|currency-arbitrage, POST /api/crew/compose-alert
-router.use('/portfolio',   portfolioRouter);  // GET  /api/portfolio/analysis, POST /api/portfolio/suggestions
+router.use('/rates',        ratesRouter);
+router.use('/stocks',       stocksRouter);
+router.use('/arbitrage',    arbitrageRouter);
+router.use('/summary',      summaryRouter);
+router.use('/webhook',      whatsappRouter);    // POST /api/webhook/whatsapp
+router.use('/paper-trade',  paperTradeRouter);  // POST /api/paper-trade
+router.use('/inflation',    inflationRouter);   // GET  /api/inflation
+router.use('/explain',      explainRouter);     // POST /api/explain
+router.use('/crew',         crewRouter);        // GET  /api/crew/summary|currency-arbitrage, POST /api/crew/compose-alert
+router.use('/portfolio',    portfolioRouter);   // GET  /api/portfolio/analysis, POST /api/portfolio/suggestions
+router.use('/market-news',  marketNewsRouter);  // GET  /api/market-news?lang=en

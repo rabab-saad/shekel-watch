@@ -1,10 +1,12 @@
 """
-Dashboard — USD/ILS ticker, AI summary, TASE phase, risk heatmap, charts.
+Dashboard — USD/ILS ticker, AI summary, TASE phase, daily market news, charts.
 """
 
 import streamlit as st
 
 st.set_page_config(page_title="Dashboard — Shekel-Watch", page_icon="📈", layout="wide")
+
+import time
 
 from components.auth import require_auth, render_sidebar_user
 from components.mode_toggle import render_mode_toggle
@@ -14,8 +16,7 @@ from components.term_tooltip import render_term
 from components.charts import render_area_chart, render_candlestick_chart
 from components.exchange_banner import render_exchange_banner
 from services.api_client import APIClient, APIError
-from services.supabase_client import get_watchlist
-from services.formatters import fmt_ils, fmt_pct, risk_label
+from services.formatters import fmt_ils, fmt_pct
 from utils.i18n import t, inject_dir
 
 if not require_auth():
@@ -106,27 +107,65 @@ except APIError as e:
 
 st.divider()
 
-# ── Row 3: Risk Heatmap (compact) ────────────────────────────────────────────
-st.subheader(t("watchlist_risk_heatmap"))
-token = st.session_state["access_token"]
-user_id = st.session_state["user_id"]
-watchlist = get_watchlist(token, user_id)
+# ── Row 3: Daily Market News Analysis ────────────────────────────────────────
+st.subheader(t("daily_market_analysis"))
 
-if not watchlist:
-    st.info(t("no_watchlist_items"))
-else:
-    risk_cols = st.columns(min(len(watchlist), 6))
-    for i, item in enumerate(watchlist[:6]):
-        ticker = item.get("ticker", "")
-        risk = item.get("risk_score", 0) or 0
-        with risk_cols[i % 6]:
-            rl = risk_label(risk)
-            if risk <= 3:
-                st.success(f"**{ticker}**\nRisk: {risk}/10\n{rl}")
-            elif risk <= 6:
-                st.warning(f"**{ticker}**\nRisk: {risk}/10\n{rl}")
-            else:
-                st.error(f"**{ticker}**\nRisk: {risk}/10\n{rl}")
+# 30-minute cache key — changes every 30 min so st.cache_data re-fetches
+_news_cache_slot = int(time.time() // 1800)
+
+if st.button(t("refresh_market_news"), key="refresh_market_news"):
+    st.cache_data.clear()
+    _news_cache_slot = int(time.time() // 1800) + 1  # bust the slot
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def fetch_market_news(language: str, _slot: int) -> dict:
+    return client.get_market_news(lang=language)
+
+try:
+    with st.spinner(t("generating_market_analysis")):
+        news_data = fetch_market_news(lang, _news_cache_slot)
+
+    us_text     = news_data.get("usAnalysis", "")
+    israel_text = news_data.get("israelAnalysis", "")
+    indices     = news_data.get("indices", [])
+    generated   = news_data.get("generatedAt", "")
+
+    # AI paragraphs
+    col_us, col_il = st.columns(2)
+    with col_us:
+        st.markdown(f"**🇺🇸 {t('us_market_analysis')}**")
+        st.markdown(us_text or "—")
+    with col_il:
+        st.markdown(f"**🇮🇱 {t('israel_market_analysis')}**")
+        st.markdown(israel_text or "—")
+
+    # Index snapshot row
+    if indices:
+        st.markdown("")
+        idx_cols = st.columns(len(indices))
+        for col, idx in zip(idx_cols, indices):
+            chg   = idx.get("changePercent", 0) or 0
+            price = idx.get("price", 0) or 0
+            with col:
+                st.metric(
+                    label=idx.get("name", idx.get("ticker", "")),
+                    value=f"{price:,.2f}",
+                    delta=fmt_pct(chg),
+                    delta_color="normal" if chg >= 0 else "inverse",
+                )
+
+    # Timestamp
+    if generated:
+        try:
+            from datetime import datetime, timezone
+            dt  = datetime.fromisoformat(generated.replace("Z", "+00:00"))
+            hm  = dt.astimezone(timezone.utc).strftime("%H:%M UTC")
+            st.caption(f"{t('last_updated')}: {hm}")
+        except Exception:
+            pass
+
+except APIError as e:
+    st.warning(t("market_news_unavailable").format(error=e.message))
 
 st.divider()
 

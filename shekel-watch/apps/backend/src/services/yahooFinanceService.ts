@@ -101,6 +101,83 @@ export async function getBatchQuotes(tickers: string[]): Promise<QuoteResult[]> 
   return results;
 }
 
+export interface NewsItem {
+  title:     string;
+  summary:   string;
+  publisher: string;
+}
+
+export interface IndexQuote {
+  ticker:        string;
+  name:          string;
+  price:         number;
+  changePercent: number;
+}
+
+const INDEX_TICKERS: { ticker: string; name: string; searchQuery: string }[] = [
+  { ticker: '^GSPC',     name: 'S&P 500',    searchQuery: 'S&P 500 market'        },
+  { ticker: '^IXIC',     name: 'Nasdaq',     searchQuery: 'Nasdaq stock market'   },
+  { ticker: '^DJI',      name: 'Dow Jones',  searchQuery: 'Dow Jones industrial'  },
+  { ticker: '^TA35.TA',  name: 'TA-35',      searchQuery: 'Tel Aviv stock exchange TASE' },
+  { ticker: '^TA125.TA', name: 'TA-125',     searchQuery: 'Israel stock market'   },
+];
+
+async function fetchNewsForQuery(query: string): Promise<NewsItem[]> {
+  try {
+    const { data } = await axios.get('https://query2.finance.yahoo.com/v1/finance/search', {
+      params: { q: query, quotesCount: 0, newsCount: 5, enableFuzzyQuery: false },
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)',
+        'Accept':     'application/json',
+      },
+      timeout: 10_000,
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return ((data?.news ?? []) as any[]).slice(0, 5).map((n: any) => ({
+      title:     n.title     ?? '',
+      summary:   n.summary   ?? '',
+      publisher: n.publisher ?? '',
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function getMarketNews(): Promise<{ news: NewsItem[]; indices: IndexQuote[] }> {
+  const [indicesResults, newsResults] = await Promise.all([
+    Promise.allSettled(
+      INDEX_TICKERS.map(async ({ ticker, name }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const q = await (yahooFinance as any).quote(ticker, {}, { validateResult: false }) as any;
+        return {
+          ticker,
+          name,
+          price:         q?.regularMarketPrice         ?? 0,
+          changePercent: q?.regularMarketChangePercent ?? 0,
+        } as IndexQuote;
+      }),
+    ),
+    Promise.allSettled(INDEX_TICKERS.map(idx => fetchNewsForQuery(idx.searchQuery))),
+  ]);
+
+  const indices = indicesResults
+    .filter((r): r is PromiseFulfilledResult<IndexQuote> => r.status === 'fulfilled')
+    .map(r => r.value);
+
+  const seen = new Set<string>();
+  const news = newsResults
+    .filter((r): r is PromiseFulfilledResult<NewsItem[]> => r.status === 'fulfilled')
+    .flatMap(r => r.value)
+    .filter(n => {
+      if (!n.title || seen.has(n.title)) return false;
+      seen.add(n.title);
+      return true;
+    })
+    .slice(0, 15);
+
+  return { news, indices };
+}
+
 export interface HistoryBar {
   time:   string; // "YYYY-MM-DD"
   open:   number;
