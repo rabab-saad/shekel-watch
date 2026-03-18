@@ -215,11 +215,13 @@ streamlit run app.py
 - The Dockerfile uses **supervisord** to run both the Node.js backend and the Python FastAPI microservice in one container.
 - Add all backend and Python environment variables in Railway → Variables.
 
-### Frontend → Vercel
+### Frontend → Railway
 
-- Connect your GitHub repo in the Vercel dashboard.
-- Set **Root Directory** to `shekel-watch/apps/streamlit-frontend`.
-- Vercel uses nixpacks to detect and build the Streamlit app automatically.
+- Add a second Railway service pointing to `shekel-watch/apps/streamlit-frontend`.
+- Railway auto-detects `railway.toml` and uses nixpacks to build and run:
+  ```
+  streamlit run app.py --server.port $PORT --server.headless true
+  ```
 - Add all Streamlit environment variables including `BACKEND_URL`.
 
 ### Database → Supabase
