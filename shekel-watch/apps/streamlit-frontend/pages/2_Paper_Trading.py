@@ -79,6 +79,15 @@ def _live_quote(ticker: str) -> dict:
         return {}
 
 
+@st.cache_data(ttl=120, show_spinner=False)
+def _stock_detail(ticker: str) -> dict:
+    """Cache stock detail for 2 min so form-submit reruns don't re-fetch."""
+    try:
+        return client.get_stock_detail(ticker)
+    except APIError:
+        return {}
+
+
 @st.cache_data(ttl=60, show_spinner=False)
 def _usd_ils() -> float:
     try:
@@ -212,14 +221,21 @@ with tab_search:
         sel_name = st.session_state.get("selected_name", selected)
         st.subheader(f"📋 {selected}  ·  {sel_name}")
 
-        with st.spinner(t("loading_symbol").format(ticker=selected)):
-            try:
-                detail          = client.get_stock_detail(selected)
-                is_detail_stale = False
-                st.session_state[f"_detail_{selected}"] = detail
-            except APIError:
-                detail          = st.session_state.get(f"_detail_{selected}", {})
-                is_detail_stale = bool(detail)
+        # Show any feedback message that was stored before a rerun
+        _msg = st.session_state.pop("_pt_add_msg", None)
+        if _msg:
+            getattr(st, _msg[0])(_msg[1])
+
+        # Use cached detail — prevents form-submit reruns from making a fresh
+        # API call that could fail and silently skip the entire form + handler.
+        detail = _stock_detail(selected)
+        if not detail:
+            # fall back to session-state copy from the last successful load
+            detail = st.session_state.get(f"_detail_{selected}", {})
+            is_detail_stale = bool(detail)
+        else:
+            is_detail_stale = False
+            st.session_state[f"_detail_{selected}"] = detail
 
         if not detail:
             st.warning(t("could_not_load_detail"))
@@ -294,28 +310,39 @@ with tab_search:
                 add_submitted = st.form_submit_button(t("add_btn"), use_container_width=True)
 
             if add_submitted:
-                if alloc > max_add + 0.01:
-                    st.error(t("exceeds_budget").format(budget=fmt_ils(max_add)))
-                else:
-                    usd_rate      = _usd_ils()
-                    cur_price_ils = _price_in_ils(selected, usd_rate)
-                    if cur_price_ils <= 0:
-                        st.error(t("fetch_price_failed"))
+                try:
+                    if alloc > max_add + 0.01:
+                        st.warning(t("exceeds_budget").format(budget=fmt_ils(max_add)))
                     else:
-                        res = upsert_portfolio_position(
-                            token, user_id,
-                            symbol        = selected,
-                            allocation_ils= alloc,
-                            price_ils     = cur_price_ils,
-                            currency      = detail.get("currency", "USD"),
-                        )
-                        if res.get("success"):
-                            st.success(t("added_success").format(amount=fmt_ils(alloc), ticker=selected))
-                            _load_profile.clear()
-                            _live_quote.clear()
-                            st.rerun()
+                        usd_rate      = _usd_ils()
+                        cur_price_ils = _price_in_ils(selected, usd_rate)
+                        if cur_price_ils <= 0:
+                            st.error(t("fetch_price_failed"))
                         else:
-                            st.error(t("failed_to_save").format(error=res.get("error")))
+                            res = upsert_portfolio_position(
+                                token, user_id,
+                                symbol        = selected,
+                                allocation_ils= alloc,
+                                price_ils     = cur_price_ils,
+                                currency      = detail.get("currency", "USD"),
+                            )
+                            if res.get("success"):
+                                # Store message in session state so it
+                                # survives the rerun and renders at the top.
+                                st.session_state["_pt_add_msg"] = (
+                                    "success",
+                                    t("added_success").format(amount=fmt_ils(alloc), ticker=selected),
+                                )
+                                _load_profile.clear()
+                                _live_quote.clear()
+                                _stock_detail.clear()
+                                st.rerun()
+                            else:
+                                st.error(t("failed_to_save").format(
+                                    error=res.get("error", "unknown error")
+                                ))
+                except Exception as exc:
+                    st.error(f"Unexpected error: {exc}")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 2: PORTFOLIO
