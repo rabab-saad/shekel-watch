@@ -1,44 +1,20 @@
 """
 Auth component — login form, session management, auth gate.
-Supports email/password, magic link, and Google OAuth (PKCE flow).
+Supports email/password and magic link.
 """
 
-import os
 import streamlit as st
 from services.supabase_client import (
     sign_in, sign_up, sign_in_magic_link, get_profile,
-    get_google_oauth_url, exchange_oauth_code,
 )
 from utils.i18n import t, inject_dir
-
-# The public URL of this Streamlit app — used as the OAuth redirect target.
-# Set APP_URL in environment (same as your Railway Streamlit domain).
-# Falls back to localhost for local development.
-_APP_URL = os.environ.get("APP_URL", "http://localhost:8501")
 
 
 def require_auth() -> bool:
     """
     Call at the top of every page.
-    1. Checks for a ?code= query param (Google OAuth return) and exchanges it.
-    2. Returns True if already authenticated.
-    3. Otherwise renders the login form and returns False.
+    Returns True if already authenticated, otherwise renders the login form and returns False.
     """
-    # ── Handle Google OAuth return ────────────────────────────────────────────
-    code = st.query_params.get("code")
-    if code and not st.session_state.get("access_token"):
-        code_verifier = st.session_state.pop("pkce_code_verifier", None)
-        with st.spinner("Completing Google sign-in…"):
-            result = exchange_oauth_code(code, code_verifier)
-        # Clear the code from the URL immediately
-        st.query_params.clear()
-        if result["success"]:
-            _save_session(result)
-            st.rerun()
-        else:
-            st.error(t("google_signin_failed").format(error=result.get("error", "")))
-            return False
-
     if st.session_state.get("access_token"):
         return True
 
@@ -47,7 +23,7 @@ def require_auth() -> bool:
 
 
 def render_login():
-    """Full-page login / signup form with Google OAuth button."""
+    """Full-page login / signup form."""
     inject_dir()
     st.markdown(
         f"<h1 style='text-align:center;'>📊 {t('app_name')}</h1>"
@@ -55,30 +31,6 @@ def render_login():
         unsafe_allow_html=True,
     )
     st.divider()
-
-    # ── Google Sign-In button ─────────────────────────────────────────────────
-    col_l, col_mid, col_r = st.columns([1, 2, 1])
-    with col_mid:
-        if st.button(t("sign_in_google"), use_container_width=True):
-            result = get_google_oauth_url(_APP_URL)
-            if result["success"]:
-                # Persist the PKCE verifier before the browser leaves the page.
-                # Streamlit keeps server sessions alive across external redirects
-                # (session is resumed via cookie when the user returns).
-                st.session_state["pkce_code_verifier"] = result.get("code_verifier")
-                st.markdown(
-                    f'<meta http-equiv="refresh" content="0; url={result["url"]}">',
-                    unsafe_allow_html=True,
-                )
-                st.info(t("redirecting_google").format(url=result["url"]))
-                st.stop()
-            else:
-                st.error(t("google_login_failed").format(error=result.get("error")))
-
-    st.markdown(
-        f"<p style='text-align:center;color:#64748b;'>{t('or_use_email')}</p>",
-        unsafe_allow_html=True,
-    )
 
     tab_login, tab_signup, tab_magic = st.tabs([t("sign_in"), t("sign_up"), t("magic_link")])
 

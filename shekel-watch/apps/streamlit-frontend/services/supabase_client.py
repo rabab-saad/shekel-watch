@@ -58,55 +58,6 @@ def sign_up(email: str, password: str, display_name: str = "") -> dict:
         return {"success": False, "error": str(e)}
 
 
-def get_google_oauth_url(redirect_to: str) -> dict:
-    """
-    Start Google OAuth PKCE flow.
-    Returns {"success": True, "url": "...", "code_verifier": "..."} on success.
-
-    The caller MUST persist code_verifier (e.g. in st.session_state) before
-    redirecting the user to url — it is needed to complete the exchange after
-    Google redirects back.
-    """
-    try:
-        client = get_anon_client()
-        response = client.auth.sign_in_with_oauth({
-            "provider": "google",
-            "options": {
-                "redirect_to": redirect_to,
-                "scopes": "email profile",
-            },
-        })
-        # Extract the PKCE code_verifier that the client stored in its in-memory
-        # storage so the caller can persist it across the browser redirect.
-        storage_key = client.auth._storage_key
-        code_verifier = client.auth._storage.get_item(f"{storage_key}-code-verifier")
-        return {"success": True, "url": response.url, "code_verifier": code_verifier}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-def exchange_oauth_code(code: str, code_verifier: str) -> dict:
-    """
-    Exchange the ?code= query param returned by Supabase after Google auth.
-    code_verifier must be the value saved before the OAuth redirect.
-    Returns the same shape as sign_in() on success.
-    """
-    try:
-        client = get_anon_client()
-        resp = client.auth.exchange_code_for_session({
-            "auth_code": code,
-            "code_verifier": code_verifier,
-        })
-        return {
-            "success": True,
-            "user_id": resp.user.id,
-            "email": resp.user.email,
-            "access_token": resp.session.access_token,
-            "refresh_token": resp.session.refresh_token,
-        }
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
 
 def sign_in_magic_link(email: str) -> dict:
     try:
