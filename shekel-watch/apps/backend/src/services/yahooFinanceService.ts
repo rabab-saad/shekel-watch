@@ -121,19 +121,77 @@ const periodToParams: Record<HistoryPeriod, { period1: Date; interval: '1d' | '1
   '2y':  { period1: new Date(Date.now() - 730 * 86400_000), interval: '1wk' },
 };
 
-export async function getHistory(ticker: string, period: HistoryPeriod = '3mo'): Promise<HistoryBar[]> {
-  const { period1, interval } = periodToParams[period] ?? periodToParams['3mo'];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows: any[] = await (yahooFinance as any).historical(ticker, { period1, interval });
+const periodToRange: Record<HistoryPeriod, string> = {
+  '1wk': '5d',
+  '1mo': '1mo',
+  '3mo': '3mo',
+  '6mo': '6mo',
+  '1y':  '1y',
+  '2y':  '2y',
+};
 
-  return rows
-    .filter(r => r.open != null && r.close != null)
-    .map(r => ({
-      time:   (r.date as Date).toISOString().slice(0, 10),
-      open:   r.open  as number,
-      high:   r.high  as number,
-      low:    r.low   as number,
-      close:  r.close as number,
-      volume: (r.volume ?? 0) as number,
-    }));
+async function getHistoryFromYahooChart(ticker: string, period: HistoryPeriod): Promise<HistoryBar[]> {
+  const { interval } = periodToParams[period] ?? periodToParams['3mo'];
+  const range = periodToRange[period] ?? '3mo';
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}`;
+  const { data } = await axios.get(url, {
+    params: { interval, range, includePrePost: false },
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)',
+      'Accept': 'application/json',
+    },
+    timeout: 12_000,
+  });
+
+  const result = data?.chart?.result?.[0];
+  if (!result) throw new Error(`No chart data for ${ticker}`);
+
+  const timestamps: number[]    = result.timestamp ?? [];
+  const q                        = result.indicators?.quote?.[0] ?? {};
+  const opens: number[]          = q.open   ?? [];
+  const highs: number[]          = q.high   ?? [];
+  const lows: number[]           = q.low    ?? [];
+  const closes: number[]         = q.close  ?? [];
+  const volumes: number[]        = q.volume ?? [];
+
+  return timestamps
+    .map((ts, i) => ({
+      time:   new Date(ts * 1000).toISOString().slice(0, 10),
+      open:   opens[i],
+      high:   highs[i],
+      low:    lows[i],
+      close:  closes[i],
+      volume: volumes[i] ?? 0,
+    }))
+    .filter(r => r.open != null && r.close != null);
+}
+
+export async function getHistory(ticker: string, period: HistoryPeriod = '3mo'): Promise<HistoryBar[]> {
+  // Primary: yahoo-finance2 historical (with validation suppressed)
+  try {
+    const { period1, interval } = periodToParams[period] ?? periodToParams['3mo'];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows: any[] = await (yahooFinance as any).historical(
+      ticker,
+      { period1, interval },
+      { validateResult: false },
+    );
+
+    const bars = rows
+      .filter(r => r.open != null && r.close != null)
+      .map(r => ({
+        time:   (r.date as Date).toISOString().slice(0, 10),
+        open:   r.open  as number,
+        high:   r.high  as number,
+        low:    r.low   as number,
+        close:  r.close as number,
+        volume: (r.volume ?? 0) as number,
+      }));
+
+    if (bars.length > 0) return bars;
+    throw new Error('Empty result from historical');
+  } catch (err) {
+    logger.warn(`yahoo-finance2 historical failed for ${ticker}, falling back to chart API`, err);
+    return getHistoryFromYahooChart(ticker, period);
+  }
 }
